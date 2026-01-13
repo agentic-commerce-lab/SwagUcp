@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ucp.dev/schemas/shopping/checkout.json",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "line_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "item": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "title": {"type": "string"},
+              "price": {"type": "integer"}
+            },
+            "required": ["id", "title", "price"]
+          },
+          "quantity": {"type": "integer", "minimum": 1}
+        },
+        "required": ["item", "quantity"]
+      }
+    },
+    "buyer": {
+      "type": "object",
+      "properties": {
+        "email": {"type": "string", "format": "email"},
+        "first_name": {"type": "string"},
+        "last_name": {"type": "string"}
+      }
+    },
+    "fulfillment": {
+      "type": "object",
+      "properties": {
+        "methods": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {"type": "string", "enum": ["shipping"]},
+              "destinations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "street_address": {"type": "string"},
+                    "address_locality": {"type": "string"},
+                    "address_region": {"type": "string"},
+                    "postal_code": {"type": "string"},
+                    "address_country": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
