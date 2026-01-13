@@ -13,7 +13,7 @@
 set -e
 
 # Run curl from the host machine, not inside container
-BASE_URL="${BASE_URL:-http://localhost:8000}"
+BASE_URL="${BASE_URL:-http://localhost}"
 
 echo "======================================================================"
 echo "UCP LIVE FLOW INTEGRATION TEST"
