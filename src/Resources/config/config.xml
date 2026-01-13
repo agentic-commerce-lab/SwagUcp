@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/shopware/platform/trunk/src/Core/System/SystemConfig/Schema/config.xsd">
+    
+    <card>
+        <title>UCP Protocol Settings</title>
+        <title lang="de-DE">UCP Protokoll Einstellungen</title>
+
+        <input-field type="text">
+            <name>ucpVersion</name>
+            <label>UCP Protocol Version</label>
+            <label lang="de-DE">UCP Protokoll Version</label>
+            <defaultValue>2026-01-11</defaultValue>
+            <helpText>The UCP protocol version this shop supports</helpText>
+            <helpText lang="de-DE">Die UCP Protokoll-Version die dieser Shop unterstützt</helpText>
+        </input-field>
+    </card>
+
+    <card>
+        <title>Security Settings</title>
+        <title lang="de-DE">Sicherheitseinstellungen</title>
+
+        <input-field type="bool">
+            <name>agentWhitelistEnabled</name>
+            <label>Enable Agent Whitelist</label>
+            <label lang="de-DE">Agent-Whitelist aktivieren</label>
+            <defaultValue>false</defaultValue>
+            <helpText>If enabled, only agents from whitelisted domains can use the UCP endpoints</helpText>
+            <helpText lang="de-DE">Wenn aktiviert, können nur Agents von erlaubten Domains die UCP Endpunkte nutzen</helpText>
+        </input-field>
+
+        <input-field type="textarea">
+            <name>agentWhitelistDomains</name>
+            <label>Whitelisted Agent Domains</label>
+            <label lang="de-DE">Erlaubte Agent-Domains</label>
+            <placeholder>api.openai.com
+api.anthropic.com
+generativelanguage.googleapis.com</placeholder>
+            <helpText>One domain per line. Supports wildcards: *.openai.com. Leave empty to allow known AI platforms (OpenAI, Anthropic, Google, etc.)</helpText>
+            <helpText lang="de-DE">Eine Domain pro Zeile. Wildcards möglich: *.openai.com. Leer lassen um bekannte AI-Plattformen zu erlauben</helpText>
+        </input-field>
+
+        <input-field type="bool">
+            <name>requireAgentSignature</name>
+            <label>Require Agent Signature</label>
+            <label lang="de-DE">Agent-Signatur erforderlich</label>
+            <defaultValue>false</defaultValue>
+            <helpText>If enabled, all requests must include a valid Request-Signature header signed by the agent</helpText>
+            <helpText lang="de-DE">Wenn aktiviert, müssen alle Anfragen einen gültigen Request-Signature Header enthalten</helpText>
+        </input-field>
+    </card>
+
+    <card>
+        <title>Signing Keys</title>
+        <title lang="de-DE">Signatur-Schlüssel</title>
+
+        <input-field type="text">
+            <name>ucpSigningKeyId</name>
+            <label>Signing Key ID</label>
+            <label lang="de-DE">Signatur-Schlüssel ID</label>
+            <helpText>Unique identifier for your signing key. Auto-generated if empty.</helpText>
+            <helpText lang="de-DE">Eindeutige ID für Ihren Signatur-Schlüssel. Wird automatisch generiert.</helpText>
+        </input-field>
+
+        <input-field type="textarea">
+            <name>ucpSigningPublicKey</name>
+            <label>Signing Public Key (PEM)</label>
+            <label lang="de-DE">Öffentlicher Signatur-Schlüssel (PEM)</label>
+            <placeholder>-----BEGIN PUBLIC KEY-----
+...
+-----END PUBLIC KEY-----</placeholder>
+            <helpText>EC P-256 public key in PEM format. Auto-generated if empty.</helpText>
+            <helpText lang="de-DE">EC P-256 öffentlicher Schlüssel im PEM Format. Wird automatisch generiert.</helpText>
+        </input-field>
+
+        <input-field type="password">
+            <name>ucpSigningPrivateKey</name>
+            <label>Signing Private Key (PEM)</label>
+            <label lang="de-DE">Privater Signatur-Schlüssel (PEM)</label>
+            <helpText>EC P-256 private key in PEM format. Auto-generated if empty. Keep this secret!</helpText>
+            <helpText lang="de-DE">EC P-256 privater Schlüssel im PEM Format. Wird automatisch generiert. Geheim halten!</helpText>
+        </input-field>
+    </card>
+
+    <card>
+        <title>Advanced Settings</title>
+        <title lang="de-DE">Erweiterte Einstellungen</title>
+
+        <input-field type="int">
+            <name>checkoutSessionTtl</name>
+            <label>Checkout Session TTL (minutes)</label>
+            <label lang="de-DE">Checkout-Session Gültigkeit (Minuten)</label>
+            <defaultValue>30</defaultValue>
+            <helpText>How long checkout sessions remain valid</helpText>
+            <helpText lang="de-DE">Wie lange Checkout-Sessions gültig bleiben</helpText>
+        </input-field>
+
+        <input-field type="bool">
+            <name>enableWebhooks</name>
+            <label>Enable Webhooks</label>
+            <label lang="de-DE">Webhooks aktivieren</label>
+            <defaultValue>true</defaultValue>
+            <helpText>Send signed webhooks to platforms when order status changes</helpText>
+            <helpText lang="de-DE">Signierte Webhooks an Plattformen senden wenn sich der Bestellstatus ändert</helpText>
+        </input-field>
+    </card>
+</config>
