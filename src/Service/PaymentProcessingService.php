@@ -10,11 +10,9 @@ use Shopware\Core\System\SalesChannel\SalesChannelContext;
 
 class PaymentProcessingService
 {
-    private PaymentProcessor $paymentProcessor;
-
-    public function __construct(PaymentProcessor $paymentProcessor)
-    {
-        $this->paymentProcessor = $paymentProcessor;
+    public function __construct(
+        private readonly PaymentProcessor $paymentProcessor,
+    ) {
     }
 
     public function processPayment(Cart $cart, array $paymentData, SalesChannelContext $context): void
@@ -24,17 +22,17 @@ class PaymentProcessingService
         if (!$handlerId) {
             throw new \InvalidArgumentException('Payment handler_id is required');
         }
-        
+
         // Map UCP payment handler to Shopware payment method
         $paymentMethodId = $this->mapHandlerToPaymentMethod($handlerId, $context);
-        
+
         if (!$paymentMethodId) {
             throw new \InvalidArgumentException("Payment handler not found: {$handlerId}");
         }
-        
+
         // Set payment method on cart
         $cart->setPaymentMethodId($paymentMethodId);
-        
+
         // Store payment credential for later processing
         // In production, this would be stored securely and processed during order creation
         $cart->addExtension('ucp_payment_data', $paymentData);
@@ -44,13 +42,13 @@ class PaymentProcessingService
     {
         // In a real implementation, this would query payment methods
         // and match them to UCP handlers based on configuration
-        
+
         // For now, return first available payment method
         $paymentMethods = $context->getSalesChannel()->getPaymentMethods();
         if ($paymentMethods && $paymentMethods->count() > 0) {
             return $paymentMethods->first()->getId();
         }
-        
+
         return null;
     }
 }

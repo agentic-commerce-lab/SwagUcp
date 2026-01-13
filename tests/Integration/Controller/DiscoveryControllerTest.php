@@ -17,23 +17,23 @@ class DiscoveryControllerTest extends TestCase
     public function testGetProfile(): void
     {
         $client = $this->createSalesChannelBrowser();
-        
+
         $client->request('GET', '/.well-known/ucp');
-        
+
         $response = $client->getResponse();
         $this->assertEquals(Response::HTTP_OK, $response->getStatusCode());
         $this->assertEquals('application/json', $response->headers->get('Content-Type'));
-        
+
         $data = json_decode($response->getContent(), true);
-        
+
         $this->assertArrayHasKey('ucp', $data);
         $this->assertArrayHasKey('payment', $data);
         $this->assertArrayHasKey('signing_keys', $data);
-        
+
         $this->assertArrayHasKey('version', $data['ucp']);
         $this->assertArrayHasKey('services', $data['ucp']);
         $this->assertArrayHasKey('capabilities', $data['ucp']);
-        
+
         $this->assertArrayHasKey('dev.ucp.shopping', $data['ucp']['services']);
         $this->assertArrayHasKey('rest', $data['ucp']['services']['dev.ucp.shopping']);
         $this->assertArrayHasKey('mcp', $data['ucp']['services']['dev.ucp.shopping']);
@@ -42,11 +42,11 @@ class DiscoveryControllerTest extends TestCase
     public function testProfileContainsCheckoutCapability(): void
     {
         $client = $this->createSalesChannelBrowser();
-        
+
         $client->request('GET', '/.well-known/ucp');
-        
+
         $data = json_decode($client->getResponse()->getContent(), true);
-        
+
         $hasCheckout = false;
         foreach ($data['ucp']['capabilities'] as $capability) {
             if ($capability['name'] === 'dev.ucp.shopping.checkout') {
@@ -57,7 +57,7 @@ class DiscoveryControllerTest extends TestCase
                 break;
             }
         }
-        
+
         $this->assertTrue($hasCheckout, 'Checkout capability should be present');
     }
 }

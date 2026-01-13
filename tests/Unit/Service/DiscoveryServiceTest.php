@@ -18,10 +18,10 @@ class DiscoveryServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->systemConfigService = $this->createMock(SystemConfigService::class);
         $this->keyManagementService = $this->createMock(KeyManagementService::class);
-        
+
         $this->service = new DiscoveryService(
             $this->systemConfigService,
             $this->keyManagementService
@@ -39,7 +39,7 @@ class DiscoveryServiceTest extends TestCase
         $version = $this->service->getUcpVersion('test-channel');
         $this->assertEquals('2026-01-11', $version);
     }
-    
+
     public function testGetUcpVersionDefault(): void
     {
         $this->systemConfigService
@@ -62,7 +62,7 @@ class DiscoveryServiceTest extends TestCase
 
         $this->assertIsArray($capabilities);
         $this->assertGreaterThanOrEqual(1, count($capabilities));
-        
+
         $checkoutCap = null;
         foreach ($capabilities as $cap) {
             if ($cap['name'] === 'dev.ucp.shopping.checkout') {
@@ -70,7 +70,7 @@ class DiscoveryServiceTest extends TestCase
                 break;
             }
         }
-        
+
         $this->assertNotNull($checkoutCap);
         $this->assertEquals('2026-01-11', $checkoutCap['version']);
         $this->assertArrayHasKey('spec', $checkoutCap);

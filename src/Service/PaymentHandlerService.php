@@ -5,87 +5,88 @@ declare(strict_types=1);
 namespace SwagUcp\Service;
 
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
-use Symfony\Component\Routing\RouterInterface;
+use SwagUcp\Ucp;
 
 class PaymentHandlerService
 {
-    private RouterInterface $router;
-
-    public function __construct(RouterInterface $router)
-    {
-        $this->router = $router;
+    public function __construct(
+        private readonly DiscoveryService $discoveryService,
+    ) {
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
     public function getHandlers(SalesChannelContext $context): array
     {
-        // Simplified implementation - return default handler
-        // In production, this would query payment methods from the repository
         return [$this->createDefaultBusinessTokenizer($context)];
     }
 
-    private function mapPaymentMethodToHandler($paymentMethod, SalesChannelContext $context): ?array
+    /**
+     * @internal Reserved for future use to map Shopware payment methods to UCP handlers.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function mapPaymentMethodToHandler(\Shopware\Core\Checkout\Payment\PaymentMethodEntity $paymentMethod, SalesChannelContext $context): ?array
     {
         $handlerIdentifier = $paymentMethod->getHandlerIdentifier();
-        
-        // Map Shopware payment handlers to UCP handlers
-        // This is a simplified mapping - in production, this would be configurable
-        
-        if (strpos($handlerIdentifier, 'google') !== false || strpos($handlerIdentifier, 'gpay') !== false) {
+        $version = $this->discoveryService->getUcpVersion($context->getSalesChannelId());
+
+        if (str_contains($handlerIdentifier, 'google') || str_contains($handlerIdentifier, 'gpay')) {
             return [
                 'id' => 'google_pay_' . $paymentMethod->getId(),
-                'name' => 'com.google.pay',
-                'version' => '2026-01-11',
-                'spec' => 'https://developers.google.com/merchant/ucp/guides/gpay-payment-handler',
-                'config_schema' => 'https://pay.google.com/gp/p/ucp/2026-01-11/schemas/gpay_config.json',
-                'instrument_schemas' => [
-                    'https://pay.google.com/gp/p/ucp/2026-01-11/schemas/gpay_card_payment_instrument.json'
-                ],
+                'name' => Ucp::GPAY_HANDLER_NAME,
+                'version' => $version,
+                'spec' => Ucp::GPAY_SPEC,
+                'config_schema' => Ucp::GPAY_CONFIG_SCHEMA,
+                'instrument_schemas' => [Ucp::GPAY_CARD_INSTRUMENT_SCHEMA],
                 'config' => [
                     'merchant_id' => $this->getGooglePayMerchantId($context),
                     'allowed_payment_methods' => [
                         [
                             'type' => 'CARD',
                             'parameters' => [
-                                'allowed_card_networks' => ['VISA', 'MASTERCARD']
-                            ]
-                        ]
-                    ]
-                ]
+                                'allowed_card_networks' => ['VISA', 'MASTERCARD'],
+                            ],
+                        ],
+                    ],
+                ],
             ];
         }
-        
+
         return null;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function createDefaultBusinessTokenizer(SalesChannelContext $context): array
     {
-        $baseUrl = $context->getSalesChannel()->getDomains()->first()->getUrl();
-        
+        $domains = $context->getSalesChannel()->getDomains();
+        $baseUrl = $domains?->first()?->getUrl() ?? '';
+        $version = $this->discoveryService->getUcpVersion($context->getSalesChannelId());
+
         return [
             'id' => 'shopware_tokenizer_' . $context->getSalesChannel()->getId(),
-            'name' => 'dev.ucp.business_tokenizer',
-            'version' => '2026-01-11',
-            'spec' => 'https://ucp.dev/specification/payment-handler-guide',
-            'config_schema' => 'https://ucp.dev/schemas/payments/delegate-payment.json',
-            'instrument_schemas' => [
-                'https://ucp.dev/schemas/shopping/types/card_payment_instrument.json'
-            ],
+            'name' => Ucp::CAPABILITY_BUSINESS_TOKENIZER,
+            'version' => $version,
+            'spec' => Ucp::SPEC_PAYMENT_HANDLER_GUIDE,
+            'config_schema' => Ucp::SCHEMA_DELEGATE_PAYMENT,
+            'instrument_schemas' => [Ucp::SCHEMA_CARD_PAYMENT_INSTRUMENT],
             'config' => [
                 'token_url' => $baseUrl . '/api/ucp/payment/tokenize',
-                'public_key' => $this->getPublicKey($context)
-            ]
+                'public_key' => $this->getPublicKey($context),
+            ],
         ];
     }
 
     private function getGooglePayMerchantId(SalesChannelContext $context): string
     {
-        // In production, this would come from configuration
         return 'example_merchant_id';
     }
 
     private function getPublicKey(SalesChannelContext $context): string
     {
-        // In production, this would come from key management
         return 'example_public_key';
     }
 }

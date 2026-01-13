@@ -7,7 +7,6 @@
         <service id="SwagUcp\Controller\DiscoveryController">
             <argument type="service" id="SwagUcp\Service\DiscoveryService"/>
             <argument type="service" id="SwagUcp\Service\PaymentHandlerService"/>
-            <argument type="service" id="router"/>
             <tag name="controller.service_arguments"/>
         </service>
 
@@ -16,8 +15,8 @@
             <argument type="service" id="SwagUcp\Service\CapabilityNegotiationService"/>
             <argument type="service" id="SwagUcp\Service\SchemaValidationService"/>
             <argument type="service" id="SwagUcp\Mapper\CheckoutMapper"/>
-            <argument type="service" id="SwagUcp\Service\SignatureVerificationService"/>
             <argument type="service" id="SwagUcp\Service\AgentAuthorizationService"/>
+            <argument type="service" id="SwagUcp\Service\DiscoveryService"/>
             <tag name="controller.service_arguments"/>
         </service>
 
@@ -32,6 +31,7 @@
             <argument type="service" id="SwagUcp\Repository\UcpCheckoutSessionRepository"/>
             <argument type="service" id="Shopware\Core\Checkout\Order\SalesChannel\OrderService"/>
             <argument type="service" id="SwagUcp\Service\PaymentProcessingService"/>
+            <argument type="service" id="SwagUcp\Service\DiscoveryService"/>
         </service>
 
         <service id="SwagUcp\Service\CapabilityNegotiationService"/>
@@ -45,7 +45,7 @@
         </service>
 
         <service id="SwagUcp\Service\PaymentHandlerService">
-            <argument type="service" id="router"/>
+            <argument type="service" id="SwagUcp\Service\DiscoveryService"/>
         </service>
 
         <service id="SwagUcp\Service\PaymentProcessingService">
@@ -80,9 +80,7 @@
 
         <!-- Mappers -->
         <service id="SwagUcp\Mapper\CheckoutMapper">
-            <argument type="service" id="Shopware\Core\Checkout\Cart\SalesChannel\CartService"/>
             <argument type="service" id="SwagUcp\Service\PaymentHandlerService"/>
-            <argument type="service" id="router"/>
         </service>
 
         <!-- Repositories -->

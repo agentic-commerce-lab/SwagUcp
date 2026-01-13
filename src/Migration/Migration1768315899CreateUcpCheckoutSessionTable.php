@@ -7,11 +7,11 @@ namespace SwagUcp\Migration;
 use Doctrine\DBAL\Connection;
 use Shopware\Core\Framework\Migration\MigrationStep;
 
-class Migration1699000000CreateUcpCheckoutSessionTable extends MigrationStep
+class Migration1768315899CreateUcpCheckoutSessionTable extends MigrationStep
 {
     public function getCreationTimestamp(): int
     {
-        return 1699000000;
+        return 1768315899;
     }
 
     public function update(Connection $connection): void

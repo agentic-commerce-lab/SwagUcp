@@ -9,33 +9,27 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
  * Service for sending signed UCP webhooks.
- * 
+ *
  * Implements the UCP webhook signing protocol using Detached JWS (RFC 7797)
  * with ES256 signatures as specified in the UCP order extension.
  */
 class WebhookService
 {
-    private SignatureVerificationService $signatureService;
-    private ?HttpClientInterface $httpClient;
-    private ?LoggerInterface $logger;
-
     public function __construct(
-        SignatureVerificationService $signatureService,
-        ?HttpClientInterface $httpClient = null,
-        ?LoggerInterface $logger = null
+        private readonly SignatureVerificationService $signatureService,
+        private readonly ?HttpClientInterface $httpClient = null,
+        private readonly ?LoggerInterface $logger = null,
     ) {
-        $this->signatureService = $signatureService;
-        $this->httpClient = $httpClient;
-        $this->logger = $logger;
     }
 
     /**
      * Send a signed webhook to a platform.
-     * 
+     *
      * @param string $webhookUrl Platform's webhook URL
      * @param array $payload Webhook payload
      * @param string $salesChannelId Sales channel ID for signing key lookup
      * @param string $eventType Event type (e.g., 'order.shipped', 'order.delivered')
+     *
      * @return WebhookResult Result of the webhook call
      */
     public function sendWebhook(
@@ -46,7 +40,7 @@ class WebhookService
     ): WebhookResult {
         try {
             // Serialize payload
-            $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $body = json_encode($payload, \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
             if ($body === false) {
                 return new WebhookResult(false, 'Failed to serialize payload');
             }
@@ -99,6 +93,7 @@ class WebhookService
                     'event' => $eventType,
                     'status' => $statusCode,
                 ]);
+
                 return new WebhookResult(true, 'Success', $statusCode, $response);
             }
 
@@ -123,13 +118,12 @@ class WebhookService
 
     /**
      * Send an order event webhook.
-     * 
+     *
      * @param string $webhookUrl Platform's webhook URL
      * @param string $orderId Order ID
      * @param string $eventType Event type (e.g., 'shipped', 'delivered', 'returned')
      * @param array $eventData Additional event data
      * @param string $salesChannelId Sales channel ID
-     * @return WebhookResult
      */
     public function sendOrderEvent(
         string $webhookUrl,
@@ -157,6 +151,7 @@ class WebhookService
         foreach ($headers as $name => $value) {
             $lines[] = "{$name}: {$value}";
         }
+
         return implode("\r\n", $lines);
     }
 
@@ -167,42 +162,22 @@ class WebhookService
     {
         foreach ($headers as $header) {
             if (preg_match('/^HTTP\/\d\.\d\s+(\d+)/', $header, $matches)) {
-                return (int)$matches[1];
+                return (int) $matches[1];
             }
         }
+
         return 0;
     }
 
     /**
      * Log a message if logger is available.
+     *
+     * @param array<string, mixed> $context
      */
     private function log(string $level, string $message, array $context = []): void
     {
         if ($this->logger !== null) {
             $this->logger->log($level, '[UCP Webhook] ' . $message, $context);
         }
-    }
-}
-
-/**
- * Result of a webhook call.
- */
-class WebhookResult
-{
-    public bool $success;
-    public string $message;
-    public ?int $statusCode;
-    public ?string $response;
-
-    public function __construct(
-        bool $success,
-        string $message,
-        ?int $statusCode = null,
-        ?string $response = null
-    ) {
-        $this->success = $success;
-        $this->message = $message;
-        $this->statusCode = $statusCode;
-        $this->response = $response;
     }
 }

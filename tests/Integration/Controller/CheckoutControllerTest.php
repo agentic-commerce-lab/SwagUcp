@@ -17,7 +17,7 @@ class CheckoutControllerTest extends TestCase
     public function testCreateCheckout(): void
     {
         $client = $this->createSalesChannelBrowser();
-        
+
         $checkoutData = [
             'line_items' => [
                 [

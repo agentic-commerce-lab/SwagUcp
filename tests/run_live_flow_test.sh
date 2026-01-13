@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # UCP Live Flow Integration Test
-# 
+#
 # This script simulates a complete UCP flow from an agent's perspective,
 # testing all endpoints and validating the protocol compliance.
 #
@@ -13,7 +13,7 @@
 set -e
 
 # Run curl from the host machine, not inside container
-BASE_URL="http://localhost"
+BASE_URL="${BASE_URL:-http://localhost:8000}"
 
 echo "======================================================================"
 echo "UCP LIVE FLOW INTEGRATION TEST"

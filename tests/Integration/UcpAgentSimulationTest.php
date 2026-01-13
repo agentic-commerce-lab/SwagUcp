@@ -12,16 +12,16 @@ use SwagUcp\Service\CapabilityNegotiationService;
 
 /**
  * UCP Agent Simulation Test
- * 
+ *
  * This test simulates a complete UCP flow from the perspective of an AI agent/platform:
- * 
+ *
  * 1. Discovery - Fetch business profile from /.well-known/ucp
  * 2. Capability Negotiation - Determine active capabilities
  * 3. Create Checkout - Initialize a checkout session
  * 4. Update Checkout - Add buyer info and fulfillment
  * 5. Complete Checkout - Finalize the order with payment
  * 6. Receive Order Update - Verify webhook signature
- * 
+ *
  * This test validates the complete UCP protocol compliance including
  * cryptographic operations for webhook signing and verification.
  */
@@ -31,12 +31,12 @@ class UcpAgentSimulationTest extends TestCase
     private string $businessPublicKeyPem;
     private string $businessPrivateKeyPem;
     private string $businessKeyId = 'business_key_2026';
-    
+
     // Simulated platform keys (agent's keys)
     private string $platformPublicKeyPem;
     private string $platformPrivateKeyPem;
     private string $platformKeyId = 'platform_agent_2026';
-    
+
     private KeyManagementService $keyManagement;
     private SignatureVerificationService $signatureService;
     private CapabilityNegotiationService $capabilityService;
@@ -44,18 +44,18 @@ class UcpAgentSimulationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Create real key management service with mock config
         $configService = $this->createMock(SystemConfigService::class);
         $this->keyManagement = new KeyManagementService($configService);
         $this->signatureService = new SignatureVerificationService($this->keyManagement);
         $this->capabilityService = new CapabilityNegotiationService();
-        
+
         // Generate business keys (simulating merchant/shop)
         $businessKeys = $this->keyManagement->generateEcP256KeyPair();
         $this->businessPublicKeyPem = $businessKeys['public'];
         $this->businessPrivateKeyPem = $businessKeys['private'];
-        
+
         // Generate platform keys (simulating AI agent)
         $platformKeys = $this->keyManagement->generateEcP256KeyPair();
         $this->platformPublicKeyPem = $platformKeys['public'];
@@ -77,13 +77,13 @@ class UcpAgentSimulationTest extends TestCase
         // ========================================
         echo "STEP 1: DISCOVERY\n";
         echo str_repeat("-", 40) . "\n";
-        
+
         $businessProfile = $this->simulateDiscovery();
-        
+
         $this->assertArrayHasKey('ucp', $businessProfile);
         $this->assertArrayHasKey('signing_keys', $businessProfile);
         $this->assertEquals('2026-01-11', $businessProfile['ucp']['version']);
-        
+
         echo "✓ Discovered business profile\n";
         echo "  - UCP Version: {$businessProfile['ucp']['version']}\n";
         echo "  - Capabilities: " . count($businessProfile['ucp']['capabilities']) . "\n";
@@ -94,17 +94,17 @@ class UcpAgentSimulationTest extends TestCase
         // ========================================
         echo "STEP 2: CAPABILITY NEGOTIATION\n";
         echo str_repeat("-", 40) . "\n";
-        
+
         $platformCapabilities = $this->getPlatformCapabilities();
         $businessCapabilities = $businessProfile['ucp']['capabilities'];
-        
+
         $activeCapabilities = $this->capabilityService->negotiate(
             ['ucp' => ['version' => '2026-01-11', 'capabilities' => $platformCapabilities]],
             $businessCapabilities
         );
-        
+
         $this->assertNotEmpty($activeCapabilities);
-        
+
         echo "✓ Negotiated capabilities\n";
         foreach ($activeCapabilities as $cap) {
             echo "  - {$cap['name']} (v{$cap['version']})\n";
@@ -116,16 +116,16 @@ class UcpAgentSimulationTest extends TestCase
         // ========================================
         echo "STEP 3: CREATE CHECKOUT SESSION\n";
         echo str_repeat("-", 40) . "\n";
-        
+
         $checkoutRequest = $this->buildCheckoutRequest();
         $checkoutResponse = $this->simulateCreateCheckout($checkoutRequest);
-        
+
         $this->assertArrayHasKey('id', $checkoutResponse);
         $this->assertEquals('incomplete', $checkoutResponse['status']);
         $this->assertArrayHasKey('totals', $checkoutResponse);
-        
+
         $checkoutId = $checkoutResponse['id'];
-        
+
         echo "✓ Created checkout session\n";
         echo "  - Session ID: {$checkoutId}\n";
         echo "  - Status: {$checkoutResponse['status']}\n";
@@ -138,14 +138,14 @@ class UcpAgentSimulationTest extends TestCase
         // ========================================
         echo "STEP 4: UPDATE CHECKOUT\n";
         echo str_repeat("-", 40) . "\n";
-        
+
         $updateRequest = $this->buildUpdateRequest();
         $updatedCheckout = $this->simulateUpdateCheckout($checkoutId, $updateRequest);
-        
+
         $this->assertEquals('ready_for_complete', $updatedCheckout['status']);
         $this->assertArrayHasKey('buyer', $updatedCheckout);
         $this->assertArrayHasKey('fulfillment', $updatedCheckout);
-        
+
         echo "✓ Updated checkout with buyer and fulfillment\n";
         echo "  - Status: {$updatedCheckout['status']}\n";
         echo "  - Buyer: {$updatedCheckout['buyer']['email']}\n";
@@ -158,17 +158,17 @@ class UcpAgentSimulationTest extends TestCase
         // ========================================
         echo "STEP 5: VERIFY MERCHANT AUTHORIZATION\n";
         echo str_repeat("-", 40) . "\n";
-        
+
         // In a real scenario, the checkout response would include ap2.merchant_authorization
         // We simulate adding it here
         $checkoutWithAuth = $this->addMerchantAuthorization($updatedCheckout);
-        
+
         // Verify the signature
         $businessJwk = $this->keyManagement->pemToJwk($this->businessPublicKeyPem, $this->businessKeyId);
         $isValid = $this->signatureService->verifyMerchantAuthorization($checkoutWithAuth, [$businessJwk]);
-        
+
         $this->assertTrue($isValid);
-        
+
         echo "✓ Merchant authorization verified\n";
         echo "  - Signature valid: Yes\n";
         echo "  - Algorithm: ES256\n\n";
@@ -178,15 +178,15 @@ class UcpAgentSimulationTest extends TestCase
         // ========================================
         echo "STEP 6: COMPLETE CHECKOUT\n";
         echo str_repeat("-", 40) . "\n";
-        
+
         $paymentData = $this->buildPaymentData();
         $completedCheckout = $this->simulateCompleteCheckout($checkoutId, $paymentData);
-        
+
         $this->assertEquals('completed', $completedCheckout['status']);
         $this->assertArrayHasKey('order', $completedCheckout);
-        
+
         $orderId = $completedCheckout['order']['id'];
-        
+
         echo "✓ Checkout completed\n";
         echo "  - Status: {$completedCheckout['status']}\n";
         echo "  - Order ID: {$orderId}\n";
@@ -197,15 +197,15 @@ class UcpAgentSimulationTest extends TestCase
         // ========================================
         echo "STEP 7: RECEIVE ORDER UPDATE (Payment Confirmed)\n";
         echo str_repeat("-", 40) . "\n";
-        
+
         $webhookPayload = $this->buildOrderUpdateWebhook($orderId, 'payment_confirmed');
         $webhookSignature = $this->simulateBusinessSignsWebhook($webhookPayload);
-        
+
         // Platform verifies the webhook signature
         $isWebhookValid = $this->verifyWebhookSignature($webhookSignature, $webhookPayload, $businessProfile);
-        
+
         $this->assertTrue($isWebhookValid);
-        
+
         echo "✓ Order update webhook received and verified\n";
         echo "  - Event: {$webhookPayload['event']}\n";
         echo "  - Order ID: {$webhookPayload['order_id']}\n";
@@ -217,18 +217,18 @@ class UcpAgentSimulationTest extends TestCase
         // ========================================
         echo "STEP 8: RECEIVE SHIPMENT UPDATE\n";
         echo str_repeat("-", 40) . "\n";
-        
+
         $shipmentPayload = $this->buildOrderUpdateWebhook($orderId, 'shipped', [
             'tracking_number' => 'DHL1234567890',
             'carrier' => 'DHL',
             'estimated_delivery' => '2026-01-15',
         ]);
         $shipmentSignature = $this->simulateBusinessSignsWebhook($shipmentPayload);
-        
+
         $isShipmentWebhookValid = $this->verifyWebhookSignature($shipmentSignature, $shipmentPayload, $businessProfile);
-        
+
         $this->assertTrue($isShipmentWebhookValid);
-        
+
         echo "✓ Shipment webhook received and verified\n";
         echo "  - Event: {$shipmentPayload['event']}\n";
         echo "  - Tracking: {$shipmentPayload['data']['tracking_number']}\n";
@@ -263,20 +263,20 @@ class UcpAgentSimulationTest extends TestCase
         echo str_repeat("=", 70) . "\n\n";
 
         $businessProfile = $this->simulateDiscovery();
-        
+
         // Create a legitimate webhook
         $originalPayload = $this->buildOrderUpdateWebhook('order_123', 'payment_confirmed');
         $signature = $this->simulateBusinessSignsWebhook($originalPayload);
-        
+
         // Verify original is valid
         $isOriginalValid = $this->verifyWebhookSignature($signature, $originalPayload, $businessProfile);
         $this->assertTrue($isOriginalValid);
         echo "✓ Original webhook verified successfully\n";
-        
+
         // Tamper with the payload
         $tamperedPayload = $originalPayload;
         $tamperedPayload['data']['payment_status'] = 'refunded'; // Attacker tries to fake refund
-        
+
         // Verification should fail
         $isTamperedValid = $this->verifyWebhookSignature($signature, $tamperedPayload, $businessProfile);
         $this->assertFalse($isTamperedValid);
@@ -284,7 +284,7 @@ class UcpAgentSimulationTest extends TestCase
     }
 
     /**
-     * @test  
+     * @test
      * Test complete checkout flow with validation at each step
      */
     public function checkoutFlowValidation(): void
@@ -297,18 +297,18 @@ class UcpAgentSimulationTest extends TestCase
         $checkout = $this->simulateCreateCheckout($this->buildCheckoutRequest());
         $this->assertEquals('incomplete', $checkout['status']);
         echo "✓ New checkout has status 'incomplete'\n";
-        
+
         // Verify messages indicate what's missing
         $this->assertArrayHasKey('messages', $checkout);
         echo "✓ Checkout includes validation messages\n";
-        
+
         // Update with buyer - should still be incomplete (no fulfillment)
         $partialUpdate = ['buyer' => ['email' => 'test@example.com', 'name' => 'Test User']];
         $partiallyUpdated = $this->simulateUpdateCheckout($checkout['id'], $partialUpdate);
-        
+
         // Note: depending on capability negotiation, might be ready_for_complete without fulfillment
         echo "✓ Partial update processed\n";
-        
+
         // Full update - should be ready_for_complete
         $fullUpdate = array_merge($partialUpdate, [
             'fulfillment' => [
@@ -324,7 +324,7 @@ class UcpAgentSimulationTest extends TestCase
         $fullyUpdated = $this->simulateUpdateCheckout($checkout['id'], $fullUpdate);
         $this->assertEquals('ready_for_complete', $fullyUpdated['status']);
         echo "✓ Full update results in 'ready_for_complete'\n";
-        
+
         // Complete - should be completed
         $completed = $this->simulateCompleteCheckout($checkout['id'], $this->buildPaymentData());
         $this->assertEquals('completed', $completed['status']);
@@ -339,7 +339,7 @@ class UcpAgentSimulationTest extends TestCase
     {
         // Simulate fetching /.well-known/ucp from the business
         $businessJwk = $this->keyManagement->pemToJwk($this->businessPublicKeyPem, $this->businessKeyId);
-        
+
         return [
             'ucp' => [
                 'version' => '2026-01-11',
@@ -490,10 +490,10 @@ class UcpAgentSimulationTest extends TestCase
         foreach ($request['line_items'] as $item) {
             $subtotal += ($item['item']['price'] ?? 0) * ($item['quantity'] ?? 1);
         }
-        
+
         $tax = (int)($subtotal * 0.19);
         $total = $subtotal + $tax;
-        
+
         return [
             'id' => 'chk_' . bin2hex(random_bytes(16)),
             'status' => 'incomplete',
@@ -521,12 +521,12 @@ class UcpAgentSimulationTest extends TestCase
             ['item' => ['id' => 'prod_laptop_001', 'title' => 'MacBook Pro 14"', 'price' => 199900], 'quantity' => 1],
             ['item' => ['id' => 'prod_case_001', 'title' => 'Laptop Sleeve', 'price' => 7900], 'quantity' => 1]
         ];
-        
+
         $subtotal = 207800; // €2,078.00
         $tax = (int)($subtotal * 0.19); // €394.82
         $shipping = $update['fulfillment']['methods'][0]['groups'][0]['selected_option_id'] === 'express' ? 1500 : 500;
         $total = $subtotal + $tax + $shipping;
-        
+
         return [
             'id' => $checkoutId,
             'status' => 'ready_for_complete',
@@ -555,16 +555,16 @@ class UcpAgentSimulationTest extends TestCase
             'SwagUcp.config.ucpSigningPublicKey' => $this->businessPublicKeyPem,
             default => ''
         });
-        
+
         $businessKeyMgmt = new KeyManagementService($configService);
         $businessSigService = new SignatureVerificationService($businessKeyMgmt);
-        
+
         $signature = $businessSigService->signMerchantAuthorization($checkout, 'channel');
-        
+
         $checkout['ap2'] = [
             'merchant_authorization' => $signature
         ];
-        
+
         return $checkout;
     }
 
@@ -599,7 +599,7 @@ class UcpAgentSimulationTest extends TestCase
             'event' => $event,
             'timestamp' => (new \DateTime())->format('c'),
         ];
-        
+
         $eventData = match($event) {
             'payment_confirmed' => [
                 'payment_status' => 'paid',
@@ -617,9 +617,9 @@ class UcpAgentSimulationTest extends TestCase
             ],
             default => $extraData
         };
-        
+
         $baseData['data'] = $eventData;
-        
+
         return $baseData;
     }
 
@@ -633,12 +633,12 @@ class UcpAgentSimulationTest extends TestCase
             'SwagUcp.config.ucpSigningPublicKey' => $this->businessPublicKeyPem,
             default => ''
         });
-        
+
         $businessKeyMgmt = new KeyManagementService($configService);
         $businessSigService = new SignatureVerificationService($businessKeyMgmt);
-        
+
         $body = json_encode($payload, JSON_UNESCAPED_SLASHES);
-        
+
         return $businessSigService->createRequestSignature($body, 'channel');
     }
 
@@ -646,7 +646,7 @@ class UcpAgentSimulationTest extends TestCase
     {
         $body = json_encode($payload, JSON_UNESCAPED_SLASHES);
         $signingKeys = $businessProfile['signing_keys'];
-        
+
         return $this->signatureService->verifyRequestSignature($signature, $body, $signingKeys);
     }
 

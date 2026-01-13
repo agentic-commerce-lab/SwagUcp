@@ -4,159 +4,148 @@ declare(strict_types=1);
 
 namespace SwagUcp\Service;
 
-use Shopware\Core\Checkout\Cart\Cart;
 use Shopware\Core\Checkout\Cart\SalesChannel\CartService;
 use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Checkout\Order\SalesChannel\OrderService;
+use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use SwagUcp\Entity\UcpCheckoutSession;
 use SwagUcp\Repository\UcpCheckoutSessionRepository;
+use SwagUcp\Ucp;
 
 class CheckoutService
 {
-    private CartService $cartService;
-    private UcpCheckoutSessionRepository $sessionRepository;
-    private OrderService $orderService;
-    private PaymentProcessingService $paymentProcessingService;
-    private DiscoveryService $discoveryService;
-
     public function __construct(
-        CartService $cartService,
-        UcpCheckoutSessionRepository $sessionRepository,
-        OrderService $orderService,
-        PaymentProcessingService $paymentProcessingService
+        private readonly CartService $cartService,
+        private readonly UcpCheckoutSessionRepository $sessionRepository,
+        private readonly OrderService $orderService,
+        private readonly PaymentProcessingService $paymentProcessingService,
+        private readonly DiscoveryService $discoveryService,
     ) {
-        $this->cartService = $cartService;
-        $this->sessionRepository = $sessionRepository;
-        $this->orderService = $orderService;
-        $this->paymentProcessingService = $paymentProcessingService;
     }
 
+    /**
+     * @param array<string, mixed> $checkoutData
+     * @param list<array<string, mixed>> $capabilities
+     */
     public function createSession(array $checkoutData, array $capabilities, SalesChannelContext $context): UcpCheckoutSession
     {
-        $sessionId = $this->generateCheckoutId();
-        
-        $session = new UcpCheckoutSession();
-        $session->setId($sessionId);
-        $session->setCartToken($context->getToken());
-        $session->setStatus('incomplete');
-        $session->setCapabilities($capabilities);
-        $session->setCheckoutData($checkoutData);
-        $session->setExpiresAt(new \DateTime('+30 minutes'));
-        $session->setCreatedAt(new \DateTime());
-        
+        $session = new UcpCheckoutSession(
+            id: $this->generateCheckoutId(),
+            cartToken: $context->getToken(),
+            status: 'incomplete',
+            capabilities: $capabilities,
+            checkoutData: $checkoutData,
+            expiresAt: new \DateTimeImmutable('+30 minutes'),
+            createdAt: new \DateTimeImmutable(),
+        );
+
         $this->sessionRepository->save($session, $context->getContext());
-        
+
         return $session;
     }
 
     public function getSession(string $id, SalesChannelContext $context): UcpCheckoutSession
     {
         $session = $this->sessionRepository->get($id, $context->getContext());
-        
+
         if (!$session) {
             throw new \RuntimeException("Checkout session not found: {$id}");
         }
-        
+
         // Check expiration
-        if ($session->getExpiresAt() < new \DateTime()) {
-            $session->setStatus('canceled');
+        if ($session->expiresAt < new \DateTimeImmutable()) {
+            $session->status = 'canceled';
             $this->sessionRepository->save($session, $context->getContext());
             throw new \RuntimeException("Checkout session expired: {$id}");
         }
-        
+
         return $session;
     }
 
+    /**
+     * @param array<string, mixed> $checkoutData
+     */
     public function updateSession(UcpCheckoutSession $session, array $checkoutData, SalesChannelContext $context): void
     {
-        // Merge checkout data
-        $existingData = $session->getCheckoutData();
-        $mergedData = array_merge($existingData, $checkoutData);
-        
-        $session->setCheckoutData($mergedData);
-        
-        // Update status based on data completeness
-        $status = $this->determineStatus($mergedData, $session->getCapabilities());
-        $session->setStatus($status);
-        
+        $session->checkoutData = array_merge($session->checkoutData, $checkoutData);
+        $session->status = $this->determineStatus($session->checkoutData, $session->capabilities);
+
         $this->sessionRepository->save($session, $context->getContext());
     }
 
+    /**
+     * @param array<string, mixed>|null $paymentData
+     */
     public function complete(UcpCheckoutSession $session, ?array $paymentData, SalesChannelContext $context): OrderEntity
     {
-        if ($session->getStatus() !== 'ready_for_complete') {
+        if ($session->status !== 'ready_for_complete') {
             throw new \InvalidArgumentException('Checkout session is not ready for completion');
         }
-        
-        // Get cart
-        $cart = $this->cartService->getCart($session->getCartToken(), $context);
-        
-        // Process payment if provided
+
+        // Get cart and process payment if provided
+        $cart = $this->cartService->getCart($session->cartToken, $context);
+
         if ($paymentData) {
             $this->paymentProcessingService->processPayment($cart, $paymentData, $context);
         }
-        
-        // Create order
-        $orderId = $this->orderService->createOrder($cart, $context->getContext());
-        
+
+        // Create order using a DataBag (OrderService gets cart from context token internally)
+        $dataBag = new RequestDataBag([
+            'tos' => true,
+        ]);
+        $orderId = $this->orderService->createOrder($dataBag, $context);
+
         // Load order entity (simplified - in production use OrderRepository)
-        $order = new \Shopware\Core\Checkout\Order\OrderEntity();
+        $order = new OrderEntity();
         $order->setId($orderId);
-        
+
         // Update session
-        $session->setStatus('completed');
-        $session->setOrderId($orderId);
+        $session->status = 'completed';
+        $session->orderId = $orderId;
         $this->sessionRepository->save($session, $context->getContext());
-        
+
         return $order;
     }
 
     public function cancel(UcpCheckoutSession $session, SalesChannelContext $context): void
     {
-        $session->setStatus('canceled');
+        $session->status = 'canceled';
         $this->sessionRepository->save($session, $context->getContext());
     }
 
+    /**
+     * Delegates to DiscoveryService (no circular dependency - DiscoveryService doesn't depend on CheckoutService).
+     *
+     * @return list<array<string, string>>
+     */
     public function getBusinessCapabilities(string $salesChannelId): array
     {
-        // This would normally use DiscoveryService, but to avoid circular dependency,
-        // we'll create a minimal implementation here
-        return [
-            [
-                'name' => 'dev.ucp.shopping.checkout',
-                'version' => '2026-01-11'
-            ],
-            [
-                'name' => 'dev.ucp.shopping.fulfillment',
-                'version' => '2026-01-11',
-                'extends' => 'dev.ucp.shopping.checkout'
-            ]
-        ];
+        return $this->discoveryService->getCapabilities($salesChannelId);
     }
 
+    /**
+     * @param array<string, mixed> $checkoutData
+     * @param list<array<string, mixed>> $capabilities
+     */
     private function determineStatus(array $checkoutData, array $capabilities): string
     {
         $hasBuyerEmail = isset($checkoutData['buyer']['email']) && !empty($checkoutData['buyer']['email']);
-        
+
         if (!$hasBuyerEmail) {
             return 'incomplete';
         }
-        
+
         // Check fulfillment if capability is active
-        $hasFulfillment = false;
-        foreach ($capabilities as $cap) {
-            if ($cap['name'] === 'dev.ucp.shopping.fulfillment') {
-                $hasFulfillment = isset($checkoutData['fulfillment']['methods']) 
-                    && count($checkoutData['fulfillment']['methods']) > 0;
-                break;
+        if (Ucp::hasCapability($capabilities, Ucp::CAPABILITY_FULFILLMENT)) {
+            $hasFulfillmentData = isset($checkoutData['fulfillment']['methods'])
+                && \count($checkoutData['fulfillment']['methods']) > 0;
+
+            if (!$hasFulfillmentData) {
+                return 'incomplete';
             }
         }
-        
-        if ($hasFulfillment && !$hasFulfillment) {
-            return 'incomplete';
-        }
-        
+
         return 'ready_for_complete';
     }
 
