@@ -4,25 +4,20 @@ Universal Commerce Protocol (UCP) integration for Shopware 6.
 
 ## Installation
 
-1. Copy this plugin to `custom/plugins/SwagUcp/` in your Shopware installation
-2. Install dependencies:
+1. Install via Composer (VCS) from your Shopware root:
    ```bash
-   composer install
+   composer config repositories.swagucp vcs https://github.com/agentic-commerce-lab/SwagUcp.git
+   composer require shopware/ucp-integration:dev-main
    ```
-3. Install and activate the plugin:
+2. Install and activate the plugin:
    ```bash
    bin/console plugin:refresh
    bin/console plugin:install --activate SwagUcp
    ```
-4. Run migrations:
-   ```bash
-   bin/console database:migrate --all SwagUcp
-   ```
-5. Clear cache:
+3. Clear cache:
    ```bash
    bin/console cache:clear
    ```
-
 ## Configuration
 
 Configure the plugin in Shopware Admin:

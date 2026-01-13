@@ -12,6 +12,11 @@ use Shopware\Core\Framework\Plugin\Context\UninstallContext;
 
 class SwagUcp extends Plugin
 {
+    public function executeComposerCommands(): bool
+    {
+        return true;
+    }
+
     public function install(InstallContext $installContext): void
     {
         parent::install($installContext);
