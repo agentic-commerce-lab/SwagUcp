@@ -11,27 +11,27 @@ use SwagUcp\Service\SignatureVerificationService;
 
 /**
  * Live UCP Flow Test
- * 
+ *
  * This test performs actual HTTP requests against the local Shopware instance
  * to validate the complete UCP flow works end-to-end.
- * 
+ *
  * Prerequisites:
  * - Shopware instance running on http://localhost
  * - SwagUcp plugin installed and activated
- * 
+ *
  * Run with: vendor/bin/phpunit tests/Integration/LiveUcpFlowTest.php --testdox
  */
 class LiveUcpFlowTest extends TestCase
 {
     private const BASE_URL = 'http://127.0.0.1';
-    
+
     private KeyManagementService $keyManagement;
     private SignatureVerificationService $signatureService;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $configService = $this->createMock(SystemConfigService::class);
         $this->keyManagement = new KeyManagementService($configService);
         $this->signatureService = new SignatureVerificationService($this->keyManagement);
@@ -44,21 +44,21 @@ class LiveUcpFlowTest extends TestCase
     public function discoveryEndpointReturnsValidProfile(): void
     {
         $response = $this->httpGet('/.well-known/ucp');
-        
+
         $this->assertNotNull($response, 'Discovery endpoint should be accessible');
         $this->assertArrayHasKey('ucp', $response);
         $this->assertArrayHasKey('version', $response['ucp']);
         $this->assertEquals('2026-01-11', $response['ucp']['version']);
-        
+
         // Verify signing keys are present and valid
         $this->assertArrayHasKey('signing_keys', $response);
         $this->assertNotEmpty($response['signing_keys']);
-        
+
         $key = $response['signing_keys'][0];
         $this->assertEquals('EC', $key['kty']);
         $this->assertEquals('P-256', $key['crv']);
         $this->assertEquals('ES256', $key['alg']);
-        
+
         echo "\n✓ Discovery endpoint returns valid UCP profile\n";
         echo "  - Version: {$response['ucp']['version']}\n";
         echo "  - Signing Key ID: {$key['kid']}\n";
@@ -94,11 +94,11 @@ class LiveUcpFlowTest extends TestCase
                 ]
             ]
         ];
-        
+
         $checkout = $this->httpPost('/ucp/checkout-sessions', $createRequest);
         $this->assertNotNull($checkout);
         $this->assertArrayHasKey('id', $checkout);
-        
+
         $checkoutId = $checkout['id'];
         echo "  ✓ Created checkout: {$checkoutId}\n";
         echo "  - Status: {$checkout['status']}\n";
@@ -134,7 +134,7 @@ class LiveUcpFlowTest extends TestCase
                 ]
             ]
         ];
-        
+
         $updatedCheckout = $this->httpPut("/ucp/checkout-sessions/{$checkoutId}", $updateRequest);
         $this->assertNotNull($updatedCheckout);
         echo "  ✓ Updated checkout\n";
@@ -164,17 +164,17 @@ class LiveUcpFlowTest extends TestCase
         $profile = $this->httpGet('/.well-known/ucp');
         $this->assertNotNull($profile);
         $this->assertNotEmpty($profile['signing_keys']);
-        
+
         $jwk = $profile['signing_keys'][0];
-        
+
         // Convert JWK to PEM
         $pem = $this->keyManagement->jwkToPem($jwk);
         $this->assertNotNull($pem, 'JWK should be convertible to PEM');
-        
+
         // Verify the PEM is valid
         $key = openssl_pkey_get_public($pem);
         $this->assertNotFalse($key, 'Converted PEM should be a valid public key');
-        
+
         echo "\n✓ Signing keys are valid and convertible\n";
         echo "  - Key ID: {$jwk['kid']}\n";
         echo "  - Algorithm: {$jwk['alg']}\n";
@@ -191,9 +191,9 @@ class LiveUcpFlowTest extends TestCase
                 ['item' => ['id' => 'test', 'title' => 'Test', 'price' => 1000], 'quantity' => 1]
             ]
         ]);
-        
+
         $this->assertNotNull($checkout);
-        
+
         // Required fields per UCP spec
         $this->assertArrayHasKey('id', $checkout);
         $this->assertArrayHasKey('status', $checkout);
@@ -201,17 +201,17 @@ class LiveUcpFlowTest extends TestCase
         $this->assertArrayHasKey('line_items', $checkout);
         $this->assertArrayHasKey('totals', $checkout);
         $this->assertArrayHasKey('ucp', $checkout);
-        
+
         // UCP metadata
         $this->assertArrayHasKey('version', $checkout['ucp']);
-        
+
         // Totals structure
         $totalTypes = array_column($checkout['totals'], 'type');
         $this->assertContains('subtotal', $totalTypes);
         $this->assertContains('total', $totalTypes);
-        
+
         echo "\n✓ Checkout response has proper UCP structure\n";
-        
+
         // Cleanup
         $this->httpPost("/ucp/checkout-sessions/{$checkout['id']}/cancel", []);
     }
@@ -230,7 +230,7 @@ class LiveUcpFlowTest extends TestCase
         ]);
         $this->assertEquals('incomplete', $checkout['status']);
         echo "\n✓ New checkout has status 'incomplete'\n";
-        
+
         // Update with buyer and fulfillment -> ready_for_complete
         $updated = $this->httpPut("/ucp/checkout-sessions/{$checkout['id']}", [
             'buyer' => ['email' => 'status-test@example.com'],
@@ -246,7 +246,7 @@ class LiveUcpFlowTest extends TestCase
         ]);
         $this->assertEquals('ready_for_complete', $updated['status']);
         echo "✓ Updated checkout has status 'ready_for_complete'\n";
-        
+
         // Cancel -> canceled
         $cancelled = $this->httpPost("/ucp/checkout-sessions/{$checkout['id']}/cancel", []);
         $this->assertEquals('canceled', $cancelled['status']);
@@ -260,7 +260,7 @@ class LiveUcpFlowTest extends TestCase
     private function httpGet(string $path): ?array
     {
         $url = self::BASE_URL . $path;
-        
+
         $context = stream_context_create([
             'http' => [
                 'method' => 'GET',
@@ -272,13 +272,13 @@ class LiveUcpFlowTest extends TestCase
                 'ignore_errors' => true,
             ],
         ]);
-        
+
         $response = @file_get_contents($url, false, $context);
-        
+
         if ($response === false) {
             return null;
         }
-        
+
         return json_decode($response, true);
     }
 
@@ -286,7 +286,7 @@ class LiveUcpFlowTest extends TestCase
     {
         $url = self::BASE_URL . $path;
         $body = json_encode($data);
-        
+
         $context = stream_context_create([
             'http' => [
                 'method' => 'POST',
@@ -301,13 +301,13 @@ class LiveUcpFlowTest extends TestCase
                 'ignore_errors' => true,
             ],
         ]);
-        
+
         $response = @file_get_contents($url, false, $context);
-        
+
         if ($response === false) {
             return null;
         }
-        
+
         return json_decode($response, true);
     }
 
@@ -315,7 +315,7 @@ class LiveUcpFlowTest extends TestCase
     {
         $url = self::BASE_URL . $path;
         $body = json_encode($data);
-        
+
         $context = stream_context_create([
             'http' => [
                 'method' => 'PUT',
@@ -330,13 +330,13 @@ class LiveUcpFlowTest extends TestCase
                 'ignore_errors' => true,
             ],
         ]);
-        
+
         $response = @file_get_contents($url, false, $context);
-        
+
         if ($response === false) {
             return null;
         }
-        
+
         return json_decode($response, true);
     }
 }

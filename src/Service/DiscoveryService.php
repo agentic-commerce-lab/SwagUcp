@@ -5,55 +5,50 @@ declare(strict_types=1);
 namespace SwagUcp\Service;
 
 use Shopware\Core\System\SystemConfig\SystemConfigService;
+use SwagUcp\Ucp;
 
 class DiscoveryService
 {
-    private SystemConfigService $systemConfigService;
-    private KeyManagementService $keyManagementService;
-
     public function __construct(
-        SystemConfigService $systemConfigService,
-        KeyManagementService $keyManagementService
+        private readonly SystemConfigService $systemConfigService,
+        private readonly KeyManagementService $keyManagementService,
     ) {
-        $this->systemConfigService = $systemConfigService;
-        $this->keyManagementService = $keyManagementService;
     }
 
     public function getUcpVersion(string $salesChannelId): string
     {
-        $version = $this->systemConfigService->getString(
-            'SwagUcp.config.ucpVersion',
-            $salesChannelId
-        );
-        
-        return !empty($version) ? $version : '2026-01-11';
+        $version = $this->systemConfigService->getString(Ucp::CONFIG_VERSION, $salesChannelId);
+
+        return $version !== '' ? $version : Ucp::VERSION;
     }
 
+    /**
+     * @return list<array<string, string>>
+     */
     public function getCapabilities(string $salesChannelId): array
     {
-        // Base capabilities
-        $capabilities = [
+        $version = $this->getUcpVersion($salesChannelId);
+
+        return [
             [
-                'name' => 'dev.ucp.shopping.checkout',
-                'version' => $this->getUcpVersion($salesChannelId),
-                'spec' => 'https://ucp.dev/specification/checkout',
-                'schema' => 'https://ucp.dev/schemas/shopping/checkout.json'
-            ]
+                'name' => Ucp::CAPABILITY_CHECKOUT,
+                'version' => $version,
+                'spec' => Ucp::SPEC_CHECKOUT,
+                'schema' => Ucp::SCHEMA_CHECKOUT,
+            ],
+            [
+                'name' => Ucp::CAPABILITY_FULFILLMENT,
+                'version' => $version,
+                'spec' => Ucp::SPEC_FULFILLMENT,
+                'schema' => Ucp::SCHEMA_FULFILLMENT,
+                'extends' => Ucp::CAPABILITY_CHECKOUT,
+            ],
         ];
-
-        // Add fulfillment extension if enabled
-        // In a real implementation, this would be configurable
-        $capabilities[] = [
-            'name' => 'dev.ucp.shopping.fulfillment',
-            'version' => $this->getUcpVersion($salesChannelId),
-            'spec' => 'https://ucp.dev/specification/fulfillment',
-            'schema' => 'https://ucp.dev/schemas/shopping/fulfillment.json',
-            'extends' => 'dev.ucp.shopping.checkout'
-        ];
-
-        return $capabilities;
     }
 
+    /**
+     * @return list<array<string, string>>
+     */
     public function getSigningKeys(string $salesChannelId): array
     {
         return $this->keyManagementService->getPublicKeys($salesChannelId);

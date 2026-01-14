@@ -30,7 +30,7 @@ class KeyManagementServiceTest extends TestCase
         $this->assertNotNull($keyPair, 'Key pair generation should succeed');
         $this->assertArrayHasKey('public', $keyPair);
         $this->assertArrayHasKey('private', $keyPair);
-        
+
         // Verify PEM format
         $this->assertStringContainsString('-----BEGIN PUBLIC KEY-----', $keyPair['public']);
         $this->assertStringContainsString('-----END PUBLIC KEY-----', $keyPair['public']);
@@ -40,14 +40,14 @@ class KeyManagementServiceTest extends TestCase
             str_contains($keyPair['private'], '-----BEGIN PRIVATE KEY-----'),
             'Private key should be in PEM format'
         );
-        
+
         // Verify keys are valid
         $publicKey = openssl_pkey_get_public($keyPair['public']);
         $this->assertNotFalse($publicKey, 'Generated public key should be valid');
-        
+
         $privateKey = openssl_pkey_get_private($keyPair['private']);
         $this->assertNotFalse($privateKey, 'Generated private key should be valid');
-        
+
         // Verify it's EC P-256
         $details = openssl_pkey_get_details($privateKey);
         $this->assertEquals(OPENSSL_KEYTYPE_EC, $details['type']);
@@ -69,11 +69,11 @@ class KeyManagementServiceTest extends TestCase
         $this->assertEquals('P-256', $jwk['crv']);
         $this->assertEquals('ES256', $jwk['alg']);
         $this->assertEquals('sig', $jwk['use']);
-        
+
         // x and y should be base64url encoded 32-byte values
         $this->assertNotEmpty($jwk['x']);
         $this->assertNotEmpty($jwk['y']);
-        
+
         // Verify no padding (base64url)
         $this->assertStringNotContainsString('=', $jwk['x']);
         $this->assertStringNotContainsString('=', $jwk['y']);
@@ -92,16 +92,16 @@ class KeyManagementServiceTest extends TestCase
         // Convert back to PEM
         $pemRestored = $this->service->jwkToPem($jwk);
         $this->assertNotNull($pemRestored, 'JWK to PEM conversion should succeed');
-        
+
         // Verify the restored PEM is valid
         $key = openssl_pkey_get_public($pemRestored);
         $this->assertNotFalse($key, 'Restored PEM should be a valid public key');
-        
+
         // Verify the keys are equivalent by checking details
         $originalKey = openssl_pkey_get_public($keyPair['public']);
         $originalDetails = openssl_pkey_get_details($originalKey);
         $restoredDetails = openssl_pkey_get_details($key);
-        
+
         $this->assertEquals($originalDetails['ec']['x'], $restoredDetails['ec']['x']);
         $this->assertEquals($originalDetails['ec']['y'], $restoredDetails['ec']['y']);
     }
@@ -153,7 +153,7 @@ class KeyManagementServiceTest extends TestCase
             ->willReturn('');
 
         $keyId = $this->service->getKeyId('test-channel');
-        
+
         $this->assertStringStartsWith('shopware_ucp_', $keyId);
         $this->assertStringContainsString(date('Y'), $keyId);
     }
@@ -167,7 +167,7 @@ class KeyManagementServiceTest extends TestCase
             ->willReturn('custom_key_id');
 
         $keyId = $this->service->getKeyId('test-channel');
-        
+
         $this->assertEquals('custom_key_id', $keyId);
     }
 
