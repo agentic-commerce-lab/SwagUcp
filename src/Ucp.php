@@ -15,7 +15,10 @@ final class Ucp
      * Default UCP version. Can be overridden via plugin config (SwagUcp.config.ucpVersion).
      * Use DiscoveryService::getUcpVersion() to get the configured version.
      */
-    public const VERSION = '2026-01-11';
+    public const VERSION = '2026-01-23';
+
+    /** Version that uses array-shaped capabilities and payment.handlers in discovery. */
+    public const VERSION_2026_01_11 = '2026-01-11';
 
     // Plugin config keys
     public const CONFIG_VERSION = 'SwagUcp.config.ucpVersion';

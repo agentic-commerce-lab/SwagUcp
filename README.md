@@ -21,7 +21,7 @@ Universal Commerce Protocol (UCP) integration for Shopware 6.
 ## Configuration
 
 Configure the plugin in Shopware Admin:
-- **Settings → System → Plugins → SwagUcp**
+- **Extensions → My extension → UCP Integration → configure**
 
 ### All Configuration Options
 

@@ -49,7 +49,7 @@ class DiscoveryServiceTest extends TestCase
             ->willReturn('');
 
         $version = $this->service->getUcpVersion('test-channel');
-        $this->assertEquals('2026-01-11', $version);
+        $this->assertEquals(\SwagUcp\Ucp::VERSION, $version);
     }
 
     public function testGetCapabilities(): void

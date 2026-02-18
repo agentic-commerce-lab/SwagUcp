@@ -9,6 +9,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Storefront\Framework\Routing\StorefrontRouteScope;
 use SwagUcp\Service\DiscoveryService;
 use SwagUcp\Service\PaymentHandlerService;
+use SwagUcp\Service\UcpCompatibilityService;
 use SwagUcp\Ucp;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -20,6 +21,7 @@ class DiscoveryController
     public function __construct(
         private readonly DiscoveryService $discoveryService,
         private readonly PaymentHandlerService $paymentHandlerService,
+        private readonly UcpCompatibilityService $ucpCompatibilityService,
     ) {
     }
 
@@ -29,6 +31,9 @@ class DiscoveryController
         $salesChannelId = $context->getSalesChannel()->getId();
         $version = $this->discoveryService->getUcpVersion($salesChannelId);
         $baseUrl = $request->getSchemeAndHttpHost();
+
+        $capabilities = $this->discoveryService->getCapabilities($salesChannelId);
+        $handlers = $this->paymentHandlerService->getHandlers($context);
 
         $profile = [
             'ucp' => [
@@ -47,13 +52,11 @@ class DiscoveryController
                         ],
                     ],
                 ],
-                'capabilities' => $this->discoveryService->getCapabilities($salesChannelId),
-            ],
-            'payment' => [
-                'handlers' => $this->paymentHandlerService->getHandlers($context),
             ],
             'signing_keys' => $this->discoveryService->getSigningKeys($salesChannelId),
         ];
+
+        $profile = $this->ucpCompatibilityService->buildProfile($profile, $version, $capabilities, $handlers);
 
         return new JsonResponse($profile);
     }

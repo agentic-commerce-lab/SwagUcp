@@ -2,7 +2,7 @@
     "name": "shopware/ucp-integration",
     "description": "Universal Commerce Protocol (UCP) integration for Shopware 6",
     "type": "shopware-platform-plugin",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "license": "Apache-2.0",
     "authors": [
         {
@@ -39,6 +39,11 @@
         "description": {
             "de-DE": "Universal Commerce Protocol Integration für Shopware",
             "en-GB": "Universal Commerce Protocol Integration for Shopware"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "symfony/runtime": true
         }
     }
 }
