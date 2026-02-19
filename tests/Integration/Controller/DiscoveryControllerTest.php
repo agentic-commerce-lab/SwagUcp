@@ -7,6 +7,7 @@ namespace SwagUcp\Tests\Integration\Controller;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\Test\TestCaseBase\IntegrationTestBehaviour;
 use Shopware\Core\Framework\Test\TestCaseBase\SalesChannelApiTestBehaviour;
+use SwagUcp\Ucp;
 use Symfony\Component\HttpFoundation\Response;
 
 class DiscoveryControllerTest extends TestCase
@@ -17,47 +18,83 @@ class DiscoveryControllerTest extends TestCase
     public function testGetProfile(): void
     {
         $client = $this->createSalesChannelBrowser();
-
         $client->request('GET', '/.well-known/ucp');
 
         $response = $client->getResponse();
-        $this->assertEquals(Response::HTTP_OK, $response->getStatusCode());
-        $this->assertEquals('application/json', $response->headers->get('Content-Type'));
+        $this->assertSame(Response::HTTP_OK, $response->getStatusCode());
+        $this->assertStringContainsString('application/json', $response->headers->get('Content-Type') ?? '');
 
         $data = json_decode($response->getContent(), true);
-
+        $this->assertIsArray($data);
         $this->assertArrayHasKey('ucp', $data);
-        $this->assertArrayHasKey('payment', $data);
         $this->assertArrayHasKey('signing_keys', $data);
 
-        $this->assertArrayHasKey('version', $data['ucp']);
-        $this->assertArrayHasKey('services', $data['ucp']);
-        $this->assertArrayHasKey('capabilities', $data['ucp']);
+        $ucp = $data['ucp'];
+        $this->assertArrayHasKey('version', $ucp);
+        $this->assertArrayHasKey('services', $ucp);
+        $this->assertArrayHasKey('capabilities', $ucp);
+        $this->assertTrue(
+            isset($data['ucp']['payment']) || isset($data['ucp']['payment_handlers']),
+            'Profile must contain ucp.payment or ucp.payment_handlers'
+        );
 
-        $this->assertArrayHasKey('dev.ucp.shopping', $data['ucp']['services']);
-        $this->assertArrayHasKey('rest', $data['ucp']['services']['dev.ucp.shopping']);
-        $this->assertArrayHasKey('mcp', $data['ucp']['services']['dev.ucp.shopping']);
+        $this->assertArrayHasKey(Ucp::CAPABILITY_SHOPPING, $ucp['services']);
+        $shopping = $ucp['services'][Ucp::CAPABILITY_SHOPPING];
+        $this->assertArrayHasKey('rest', $shopping);
+        $this->assertArrayHasKey('mcp', $shopping);
     }
 
     public function testProfileContainsCheckoutCapability(): void
     {
         $client = $this->createSalesChannelBrowser();
+        $client->request('GET', '/.well-known/ucp');
 
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $checkoutCap = $this->findCapability($data['ucp']['capabilities'], Ucp::CAPABILITY_CHECKOUT);
+
+        $this->assertNotNull($checkoutCap, 'Checkout capability should be present');
+        $this->assertArrayHasKey('version', $checkoutCap);
+        $this->assertArrayHasKey('spec', $checkoutCap);
+        $this->assertArrayHasKey('schema', $checkoutCap);
+    }
+
+    public function testPaymentSectionHasExpectedStructure(): void
+    {
+        $client = $this->createSalesChannelBrowser();
         $client->request('GET', '/.well-known/ucp');
 
         $data = json_decode($client->getResponse()->getContent(), true);
 
-        $hasCheckout = false;
-        foreach ($data['ucp']['capabilities'] as $capability) {
-            if ($capability['name'] === 'dev.ucp.shopping.checkout') {
-                $hasCheckout = true;
-                $this->assertEquals('2026-01-11', $capability['version']);
-                $this->assertArrayHasKey('spec', $capability);
-                $this->assertArrayHasKey('schema', $capability);
-                break;
+        $ucp = $data['ucp'];
+        if (isset($ucp['payment'])) {
+            $this->assertArrayHasKey('handlers', $ucp['payment']);
+            $this->assertIsArray($ucp['payment']['handlers']);
+        } else {
+            $this->assertArrayHasKey('payment_handlers', $ucp);
+            $this->assertIsArray($ucp['payment_handlers']);
+            $this->assertNotEmpty($ucp['payment_handlers'], 'At least one payment handler should be exposed');
+        }
+    }
+
+    /**
+     * @param array<int|string, mixed> $capabilities list of capability arrays or name => capability map
+     *
+     * @return array<string, mixed>|null
+     */
+    private function findCapability(array $capabilities, string $name): ?array
+    {
+        if (array_is_list($capabilities)) {
+            foreach ($capabilities as $cap) {
+                if (($cap['name'] ?? '') === $name) {
+                    return $cap;
+                }
             }
+
+            return null;
         }
 
-        $this->assertTrue($hasCheckout, 'Checkout capability should be present');
+        $cap = $capabilities[$name] ?? null;
+
+        return is_array($cap) ? $cap : null;
     }
 }

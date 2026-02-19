@@ -7,6 +7,7 @@
         <service id="SwagUcp\Controller\DiscoveryController">
             <argument type="service" id="SwagUcp\Service\DiscoveryService"/>
             <argument type="service" id="SwagUcp\Service\PaymentHandlerService"/>
+            <argument type="service" id="SwagUcp\Service\UcpCompatibilityService"/>
             <tag name="controller.service_arguments"/>
         </service>
 
@@ -43,6 +44,8 @@
         <service id="SwagUcp\Service\SchemaLoaderService">
             <argument>%kernel.project_dir%/custom/plugins/SwagUcp/src/Resources/schemas</argument>
         </service>
+
+        <service id="SwagUcp\Service\UcpCompatibilityService"/>
 
         <service id="SwagUcp\Service\PaymentHandlerService">
             <argument type="service" id="SwagUcp\Service\DiscoveryService"/>

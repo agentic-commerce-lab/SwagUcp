@@ -2,6 +2,15 @@
 
 Universal Commerce Protocol (UCP) integration for Shopware 6.
 
+## Reference implementation
+
+This plugin is a **reference implementation** of the UCP protocol for Shopware 6. For **most payment methods there is still work to do** before production use:
+
+- **[PaymentHandlerService](src/Service/PaymentHandlerService.php)** — Exposes payment handlers in the discovery profile (e.g. `/.well-known/ucp`). Currently returns a single default “business tokenizer” handler; mapping of Shopware payment methods to UCP handlers (e.g. Google Pay) is reserved for future use and not fully implemented.
+- **[PaymentProcessingService](src/Service/PaymentProcessingService.php)** — Applies UCP payment data to the cart and maps handler IDs to Shopware payment methods. The current implementation is a placeholder: it picks the first available payment method instead of resolving handler IDs from configuration, and payment credentials are stored on the cart for later processing rather than being fully integrated with order creation.
+
+If you integrate additional payment methods or processors, extend these services and wire them to your Shopware payment method configuration and order flow.
+
 ## Installation
 
 1. Install via Composer (VCS) from your Shopware root:
@@ -21,7 +30,7 @@ Universal Commerce Protocol (UCP) integration for Shopware 6.
 ## Configuration
 
 Configure the plugin in Shopware Admin:
-- **Settings → System → Plugins → SwagUcp**
+- **Extensions → My extension → UCP Integration → configure**
 
 ### All Configuration Options
 
