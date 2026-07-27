@@ -93,5 +93,10 @@
         <service id="SwagUcp\Repository\UcpCheckoutSessionRepository">
             <argument type="service" id="Doctrine\DBAL\Connection"/>
         </service>
+
+        <!-- Entities -->
+        <service id="SwagUcp\Entity\AgentAuthorization\AgentAuthorizationDefinition">
+            <tag name="shopware.entity.definition" entity="swag_ucp_agent_authorization"/>
+        </service>
     </services>
 </container>
