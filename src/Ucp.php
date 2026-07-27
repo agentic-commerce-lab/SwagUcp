@@ -52,6 +52,11 @@ final class Ucp
     public const CAPABILITY_FULFILLMENT = 'dev.ucp.shopping.fulfillment';
     public const CAPABILITY_BUSINESS_TOKENIZER = 'dev.ucp.business_tokenizer';
 
+    // Identity linking (provided by the separate SwagUcpIdentityLinking plugin)
+    public const CAPABILITY_IDENTITY_LINKING = 'dev.ucp.common.identity_linking';
+    public const SPEC_IDENTITY_LINKING = self::BASE_URL . '/specification/identity-linking';
+    public const IDENTITY_LINKING_PLUGIN_CLASS = 'SwagUcpIdentityLinking\SwagUcpIdentityLinking';
+
     // Third-party Payment Handler URLs (Google Pay)
     public const GPAY_SPEC = 'https://developers.google.com/merchant/ucp/guides/gpay-payment-handler';
     public const GPAY_CONFIG_SCHEMA = 'https://pay.google.com/gp/p/ucp/' . self::VERSION . '/schemas/gpay_config.json';

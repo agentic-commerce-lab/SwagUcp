@@ -70,6 +70,19 @@ class DiscoveryController
             ];
         }
 
+        // Advertised only when the separate SwagUcpIdentityLinking plugin (the
+        // customer-facing OAuth 2.0 authorization server) is installed.
+        if (class_exists(Ucp::IDENTITY_LINKING_PLUGIN_CLASS)) {
+            $capabilities[] = [
+                'name' => Ucp::CAPABILITY_IDENTITY_LINKING,
+                'version' => $version,
+                'spec' => Ucp::SPEC_IDENTITY_LINKING,
+                'config' => [
+                    'metadata' => $baseUrl . '/.well-known/oauth-authorization-server',
+                ],
+            ];
+        }
+
         $profile = $this->ucpCompatibilityService->buildProfile($profile, $version, $capabilities, $handlers);
 
         return new JsonResponse($profile);
