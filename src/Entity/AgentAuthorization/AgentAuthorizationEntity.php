@@ -13,8 +13,12 @@ use Shopware\Core\Framework\DataAbstractionLayer\EntityIdTrait;
  *
  * A quote request is only allowed when the verified agent platform (domain
  * from the UCP-Agent profile URL) has an unrevoked record for the resolved
- * customer. Deliberately protocol-neutral: external identity layers (signed
- * mandates etc.) map onto this record from outside the plugin.
+ * customer. Deliberately protocol-neutral: external identity layers map onto
+ * this record from outside the plugin. Planned: a separate plugin implementing
+ * dev.ucp.common.identity_linking (customer-facing OAuth 2.0 authorization
+ * server) whose completed grants create these records and whose token
+ * revocation sets revokedAt - this entity is the authorization state, that
+ * plugin the authorization ceremony.
  */
 class AgentAuthorizationEntity extends Entity
 {
