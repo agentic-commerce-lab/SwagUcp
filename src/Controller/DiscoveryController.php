@@ -9,6 +9,7 @@ use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Storefront\Framework\Routing\StorefrontRouteScope;
 use SwagUcp\Service\DiscoveryService;
 use SwagUcp\Service\PaymentHandlerService;
+use SwagUcp\Service\QuoteFeatureService;
 use SwagUcp\Service\UcpCompatibilityService;
 use SwagUcp\Ucp;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -22,6 +23,7 @@ class DiscoveryController
         private readonly DiscoveryService $discoveryService,
         private readonly PaymentHandlerService $paymentHandlerService,
         private readonly UcpCompatibilityService $ucpCompatibilityService,
+        private readonly QuoteFeatureService $quoteFeatureService,
     ) {
     }
 
@@ -55,6 +57,18 @@ class DiscoveryController
             ],
             'signing_keys' => $this->discoveryService->getSigningKeys($salesChannelId),
         ];
+
+        if ($this->quoteFeatureService->isAvailable()) {
+            $quoteSchemaUrl = $baseUrl . '/ucp/schemas/quote.openapi.json';
+            $profile['ucp']['services'][Ucp::CAPABILITY_QUOTE] = [
+                'version' => Ucp::QUOTE_VERSION,
+                'spec' => $quoteSchemaUrl,
+                'rest' => [
+                    'schema' => $quoteSchemaUrl,
+                    'endpoint' => $baseUrl . '/ucp/quotes',
+                ],
+            ];
+        }
 
         $profile = $this->ucpCompatibilityService->buildProfile($profile, $version, $capabilities, $handlers);
 

@@ -41,6 +41,11 @@ final class Ucp
     public const SERVICE_SHOPPING_REST_SCHEMA = self::BASE_URL . '/services/shopping/rest.openapi.json';
     public const SERVICE_SHOPPING_MCP_SCHEMA = self::BASE_URL . '/services/shopping/mcp.openrpc.json';
 
+    // Vendor capability: B2B Request-for-Quote (com.shopware.* is Shopware's own
+    // reverse-domain namespace; dev.ucp.* is reserved for the UCP governing body)
+    public const CAPABILITY_QUOTE = 'com.shopware.quote';
+    public const QUOTE_VERSION = '2026-07-27';
+
     // Capability Names
     public const CAPABILITY_SHOPPING = 'dev.ucp.shopping';
     public const CAPABILITY_CHECKOUT = 'dev.ucp.shopping.checkout';
