@@ -81,7 +81,17 @@ vendor/bin/phpunit tests/Unit/Service/SecurityProtocolComplianceTest.php --testd
 - Base64url encoding (no padding)
 - Cross-key interoperability
 
-#### 4. UCP Agent Simulation Tests
+#### 4. Quote Capability Tests (B2B)
+
+Unit tests for the `com.shopware.quote` capability (feature gating, buyer resolution/authorization, mapping, facade, OpenAPI contract):
+
+```bash
+vendor/bin/phpunit tests/Unit/Service/QuoteFeatureServiceTest.php tests/Unit/Service/QuoteBuyerServiceTest.php tests/Unit/Service/QuoteServiceTest.php tests/Unit/Mapper/QuoteMapperTest.php tests/Unit/Schema/QuoteOpenApiSchemaTest.php tests/Unit/Entity/AgentAuthorizationTest.php --testdox
+```
+
+Integration tests (`tests/Integration/Controller/QuoteControllerTest.php`) cover both environments: on a plain shop they assert the capability is absent and quote routes return 404; with SwagCommercial + a Quote Management license they run the full loop (create → read → merchant reply → counter → accept → order) plus the negative cases (unknown buyer, unauthorized agent, unflagged customer, foreign quote id, revoked authorization). Tests skip gracefully when their environment half does not apply.
+
+#### 5. UCP Agent Simulation Tests
 
 Simulates a complete UCP flow from an AI agent's perspective.
 
@@ -209,6 +219,8 @@ ALL TESTS PASSED
 |----------|-----------|----------|
 | `/.well-known/ucp` | `run_live_flow_test.sh` | Profile, Keys |
 | `/ucp/checkout-sessions` | `run_live_flow_test.sh` | CRUD Operations |
+| `/ucp/quotes` + sub-routes | `QuoteControllerTest.php` | Full RFQ loop, gating, negative cases |
+| `/ucp/schemas/quote.openapi.json` | `QuoteOpenApiSchemaTest.php` | Contract structure, state machine, error codes |
 | Webhooks | `UcpAgentSimulationTest.php` | Signature Flow |
 
 ## Troubleshooting

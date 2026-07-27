@@ -37,9 +37,9 @@
 
 **Interfaces:** `Ucp::CAPABILITY_QUOTE = 'com.shopware.quote'`, `Ucp::QUOTE_VERSION = '2026-07-27'`. `QuoteFeatureService::isAvailable(): bool` — `class_exists('Shopware\Commercial\B2B\QuoteManagement\QuoteManagement')` AND `License::get('QUOTE_MANAGEMENT-8702512') !== false` (License FQCN referenced as string, guarded by `class_exists`). Constructor takes optional override closure for tests. DiscoveryController adds, only when available, `services['com.shopware.quote'] = ['version' => Ucp::QUOTE_VERSION, 'spec' => $baseUrl.'/ucp/schemas/quote.openapi.json', 'rest' => ['schema' => ..., 'endpoint' => $baseUrl.'/ucp/quotes']]`.
 
-- [ ] Failing unit test: without Commercial classes `isAvailable()` is false; with injected availability-check closure returning true it is true.
-- [ ] Implement; wire services.xml; run `vendor/bin/phpunit --testsuite Unit`.
-- [ ] Commit.
+- [x] Failing unit test: without Commercial classes `isAvailable()` is false; with injected availability-check closure returning true it is true.
+- [x] Implement; wire services.xml; run `vendor/bin/phpunit --testsuite Unit`.
+- [x] Commit.
 
 ### Task 2: Agent authorization record (migration + DAL entity)
 
@@ -47,9 +47,9 @@
 
 **Interfaces:** table `swag_ucp_agent_authorization` (`id` BINARY(16) PK, `customer_id` BINARY(16) NOT NULL FK→customer ON DELETE CASCADE, `agent_domain` VARCHAR(255) NOT NULL, `key_id` VARCHAR(255) NULL, `revoked_at` DATETIME(3) NULL, `created_at`/`updated_at` DATETIME(3), UNIQUE(customer_id, agent_domain)). DAL definition entity name `swag_ucp_agent_authorization` → Admin API CRUD (`/api/swag-ucp-agent-authorization`) is the v1 admin surface; revocation = PATCH `revokedAt`.
 
-- [ ] Write definition + entity + migration; register definition in services.xml with `shopware.entity.definition` tag.
-- [ ] Unit test: definition exposes expected fields (entity name, required customerId/agentDomain).
-- [ ] Commit.
+- [x] Write definition + entity + migration; register definition in services.xml with `shopware.entity.definition` tag.
+- [x] Unit test: definition exposes expected fields (entity name, required customerId/agentDomain).
+- [x] Commit.
 
 ### Task 3: QuoteBuyerService (resolve buyer → authorize agent → gate → impersonated context)
 
@@ -57,8 +57,8 @@
 
 **Interfaces:** `QuoteBuyerService::resolveContext(?string $agentDomain, ?string $email, ?string $customerNumber, SalesChannelContext $anonymous): SalesChannelContext`. Throws `QuoteAccessException` carrying `(code, httpStatus)`: `buyer_not_found`/404 → `agent_not_authorized`/403 → `quote_not_enabled_for_buyer`/403, in that order. Deps: `customer.repository`, `swag_ucp_agent_authorization.repository`, Commercial `CustomerSpecificFeatureService` as `?object` (`on-invalid="null"`), `AbstractSalesChannelContextFactory`. Authorization requires a record with matching `agentDomain` and `revokedAt IS NULL`. Context: `factory->create(Uuid::randomHex(), $salesChannelId, [SalesChannelContextService::CUSTOMER_ID => $customerId])`.
 
-- [ ] Failing unit tests: unknown email → buyer_not_found; no/revoked record → agent_not_authorized; record ok but feature service says no (or is null) → quote_not_enabled_for_buyer; all pass → context factory called with customer id.
-- [ ] Implement; run Unit suite; commit.
+- [x] Failing unit tests: unknown email → buyer_not_found; no/revoked record → agent_not_authorized; record ok but feature service says no (or is null) → quote_not_enabled_for_buyer; all pass → context factory called with customer id.
+- [x] Implement; run Unit suite; commit.
 
 ### Task 4: QuoteService facade + QuoteMapper
 
@@ -71,9 +71,9 @@
 - `accept(string $id, SalesChannelContext $ctx): object` (returns order) ; `decline(string $id, ?string $comment, SalesChannelContext $ctx): object` (reload quote).
 `QuoteMapper::map(object $quote): array` — id, quote_number, state, expiration_date (always present, null allowed), currency ISO, totals `{gross, net, tax_status}`, line_items `[{id, product_id, label, quantity, unit_price, total_price, requested_unit_price}]` (unit prices per unit, currency of quote, gross/net per tax_status), comments, order_id.
 
-- [ ] Failing mapper test with anonymous-class quote stub (dynamic getters make this possible without Commercial).
-- [ ] QuoteService unit test: throws quote_unavailable RuntimeException when routes are null; create() orchestration happy-path with stub objects.
-- [ ] Implement both; Unit suite green; commit.
+- [x] Failing mapper test with anonymous-class quote stub (dynamic getters make this possible without Commercial).
+- [x] QuoteService unit test: throws quote_unavailable RuntimeException when routes are null; create() orchestration happy-path with stub objects.
+- [x] Implement both; Unit suite green; commit.
 
 ### Task 5: QuoteController + OpenAPI schema + wiring
 
@@ -81,8 +81,8 @@
 
 **Interfaces:** Routes (all `auth_required => false`, storefront scope, like CheckoutController): `POST /ucp/quotes`, `GET /ucp/quotes/{id}`, `POST /ucp/quotes/{id}/counter`, `POST /ucp/quotes/{id}/accept`, `POST /ucp/quotes/{id}/decline`, `GET /ucp/schemas/quote.openapi.json`. Every action: `QuoteFeatureService->isAvailable()` else 404 `quote_unavailable`; then agent auth (existing `authorizeRequest`) else 403 `unauthorized`; then `QuoteBuyerService::resolveContext` (buyer from body `buyer.email`/`buyer.customer_number` or query `buyer_email`); then QuoteService; map Commercial `ShopwareHttpException`/`HttpException` to its own error code + status (expired accept → 400 `CHECKOUT__QUOTE_CANNOT_PLACE_ORDER` passthrough; quoteNotFound → 404). Error envelope identical to CheckoutController. Schema documents: state machine transition table (`x-state-machine`), who-may-act, expiration semantics, price semantics (per-unit, gross/net via `tax_status`), polling (`x-polling-interval-seconds: 300`), auth requirements + all error codes.
 
-- [ ] Schema unit test: file is valid JSON, OpenAPI 3.1, has the 5 paths, error codes enum, x-state-machine covering all buyer-visible states.
-- [ ] Implement controller + schema; Unit suite green; commit.
+- [x] Schema unit test: file is valid JSON, OpenAPI 3.1, has the 5 paths, error codes enum, x-state-machine covering all buyer-visible states.
+- [x] Implement controller + schema; Unit suite green; commit.
 
 ### Task 6: Integration tests + acceptance sweep
 
@@ -90,7 +90,7 @@
 
 - Without Commercial (always runnable): discovery JSON has no `com.shopware.quote`; `POST /ucp/quotes` and schema route → 404. Guarded with kernel-availability skip like existing integration tests.
 - With Commercial (skip via `class_exists` otherwise): full loop create→read→counter→accept; negative cases (unknown buyer 404, unauthorized agent 403, unflagged customer 403, foreign quote 404, revoked authorization 403).
-- [ ] Run full Unit suite + php -l on all new files; update CHANGELOG; commit.
+- [x] Run full Unit suite + php -l on all new files; update CHANGELOG; commit.
 
 ## Self-Review notes
 

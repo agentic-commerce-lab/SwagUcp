@@ -222,6 +222,24 @@ Require Signature: ✅ Enabled
 - `POST /ucp/checkout-sessions/{id}/complete` - Complete checkout
 - `POST /ucp/checkout-sessions/{id}/cancel` - Cancel checkout
 
+### Quote API (B2B, requires SwagCommercial)
+
+Vendor capability `com.shopware.quote`: a buyer-facing Request-for-Quote flow for any UCP agent, with nothing specific to a single agent protocol. It is advertised in `/.well-known/ucp` — and its routes enabled — only when SwagCommercial is installed **and** the Quote Management feature is licensed (runtime detection; no composer dependency). The full machine-readable contract (state machine, expiration and gross/net price semantics, error codes, polling guidance) is self-served at `/ucp/schemas/quote.openapi.json`.
+
+- `POST /ucp/quotes` - Request a quote (line items with optional per-line requested unit prices, optional comment)
+- `GET /ucp/quotes/{id}` - Read state and offer (poll for merchant replies; `?buyer_email=` carries the buyer claim)
+- `POST /ucp/quotes/{id}/counter` - Counter-offer (valid in state `replied`)
+- `POST /ucp/quotes/{id}/accept` - Accept the offer; accepting **is** ordering and returns the order reference
+- `POST /ucp/quotes/{id}/decline` - Decline the offer
+
+On top of agent authentication, every quote request must satisfy (in this order):
+
+1. A buyer claim (`buyer.email` and/or `buyer.customer_number`) resolving to an active customer — else `404 buyer_not_found`.
+2. An unrevoked `swag_ucp_agent_authorization` record linking that customer to the verified agent platform domain — else `403 agent_not_authorized`. Records are managed via the Admin API (`/api/swag-ucp-agent-authorization`); setting `revokedAt` blocks the very next request. The separate **SwagUcpIdentityLinking** plugin creates these records through a standard OAuth 2.0 consent flow (`dev.ucp.common.identity_linking`).
+3. The customer's `customer_specific_features` must include `QUOTE_MANAGEMENT` — else `403 quote_not_enabled_for_buyer`.
+
+Quote operations execute server-side in the resolved customer's sales-channel context: agents never hold Shopware credentials, and contract pricing, rules, and quote ownership behave exactly as if the customer acted themselves. Foreign or unknown quote ids return `404` without confirming existence.
+
 ### Webhook Signing
 
 Outgoing webhooks (order updates) are signed using `Request-Signature` header:
@@ -287,6 +305,21 @@ curl -X POST https://your-shop.com/ucp/checkout-sessions \
   -d '{"line_items": [...]}'
 ```
 
+### Request a Quote (B2B)
+```bash
+curl -X POST https://your-shop.com/ucp/quotes \
+  -H "Content-Type: application/json" \
+  -H "X-Requested-With: XMLHttpRequest" \
+  -H "UCP-Agent: UCP/2026-01-11 profile=\"https://agent.example.com/.well-known/ucp\"" \
+  -d '{
+    "buyer": {"email": "buyer@customer-company.com"},
+    "line_items": [
+      {"product_id": "0190c1a3e2f37a5c8d4e", "quantity": 500, "requested_unit_price": 7.5}
+    ],
+    "comment": "Requesting volume pricing for Q3"
+  }'
+```
+
 ## Checklist for Merchants
 
 Before going live:
@@ -298,6 +331,8 @@ Before going live:
 - [ ] Test the integration with your AI agent partner
 - [ ] Ensure HTTPS is configured
 - [ ] Review webhook endpoints are secured
+- [ ] B2B quoting: verify `com.shopware.quote` appears in `/.well-known/ucp` (requires SwagCommercial + Quote Management license)
+- [ ] B2B quoting: create `swag_ucp_agent_authorization` records only for agent platforms your customers actually authorized, and enable `QUOTE_MANAGEMENT` in the customers' specific features
 
 ## Troubleshooting
 
