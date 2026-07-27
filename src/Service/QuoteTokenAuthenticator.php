@@ -35,7 +35,7 @@ class QuoteTokenAuthenticator
     public const SCOPE_QUOTE = 'quote';
 
     private const CONFIG_PUBLIC_KEY = 'SwagUcpIdentityLinking.config.publicKey';
-    private const ACCESS_TOKEN_TABLE = 'swag_ucp_oauth_access_token';
+    private const ACCESS_TOKEN_TABLE = 'swag_oauth_access_token';
 
     public function __construct(
         private readonly SystemConfigService $systemConfigService,
