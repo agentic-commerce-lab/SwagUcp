@@ -50,6 +50,20 @@
 
         <service id="SwagUcp\Service\QuoteFeatureService"/>
 
+        <service id="SwagUcp\Service\QuoteService">
+            <!-- Soft dependencies: all null when SwagCommercial is not installed -->
+            <argument type="service" id="Shopware\Commercial\B2B\QuoteManagement\Domain\CartToQuote\QuoteRequestRoute" on-invalid="null"/>
+            <argument type="service" id="Shopware\Commercial\B2B\QuoteManagement\Domain\State\QuoteSendRequestRoute" on-invalid="null"/>
+            <argument type="service" id="Shopware\Commercial\B2B\QuoteManagement\Domain\LineItem\QuoteLineItemRoute" on-invalid="null"/>
+            <argument type="service" id="Shopware\Commercial\B2B\QuoteManagement\Domain\QuoteAccounting\QuoteLoadRoute" on-invalid="null"/>
+            <argument type="service" id="Shopware\Commercial\B2B\QuoteManagement\Domain\State\QuoteRequestChangeRoute" on-invalid="null"/>
+            <argument type="service" id="Shopware\Commercial\B2B\QuoteManagement\Domain\State\QuoteDeclineRoute" on-invalid="null"/>
+            <argument type="service" id="Shopware\Commercial\B2B\QuoteManagement\Domain\QuoteToOrder\QuoteOrderRoute" on-invalid="null"/>
+            <argument type="service" id="Shopware\Core\Checkout\Cart\SalesChannel\CartService"/>
+            <argument type="service" id="Shopware\Core\Checkout\Cart\LineItemFactoryRegistry"/>
+            <argument type="service" id="product.repository"/>
+        </service>
+
         <service id="SwagUcp\Service\QuoteBuyerService">
             <argument type="service" id="customer.repository"/>
             <argument type="service" id="swag_ucp_agent_authorization.repository"/>
@@ -93,6 +107,8 @@
         </service>
 
         <!-- Mappers -->
+        <service id="SwagUcp\Mapper\QuoteMapper"/>
+
         <service id="SwagUcp\Mapper\CheckoutMapper">
             <argument type="service" id="SwagUcp\Service\PaymentHandlerService"/>
         </service>
