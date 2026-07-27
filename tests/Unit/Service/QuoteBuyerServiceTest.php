@@ -134,6 +134,55 @@ class QuoteBuyerServiceTest extends TestCase
         $this->assertSame($customerContext, $result);
     }
 
+    public function testTokenContextForUnknownCustomerThrowsBuyerNotFound(): void
+    {
+        $this->mockCustomerId(null);
+        $service = $this->createService(featureAllowed: true);
+
+        try {
+            $service->resolveTokenContext('unknown-customer-id', $this->anonymousContext);
+            $this->fail('Expected QuoteAccessException');
+        } catch (QuoteAccessException $e) {
+            $this->assertSame('buyer_not_found', $e->getErrorCode());
+        }
+    }
+
+    public function testTokenContextForUnflaggedCustomerThrowsQuoteNotEnabled(): void
+    {
+        $this->mockCustomerId('customer-id');
+        $service = $this->createService(featureAllowed: false);
+
+        try {
+            $service->resolveTokenContext('customer-id', $this->anonymousContext);
+            $this->fail('Expected QuoteAccessException');
+        } catch (QuoteAccessException $e) {
+            $this->assertSame('quote_not_enabled_for_buyer', $e->getErrorCode());
+        }
+    }
+
+    public function testTokenContextSkipsAuthorizationRecordCheck(): void
+    {
+        $this->mockCustomerId('customer-id');
+        // No authorization record exists - the OAuth grant itself is the authorization
+        $this->authorizationRepository->expects($this->never())->method('searchIds');
+
+        $customerContext = $this->createMock(SalesChannelContext::class);
+        $this->contextFactory
+            ->expects($this->once())
+            ->method('create')
+            ->with(
+                $this->isType('string'),
+                'sales-channel-id',
+                [SalesChannelContextService::CUSTOMER_ID => 'customer-id']
+            )
+            ->willReturn($customerContext);
+
+        $service = $this->createService(featureAllowed: true);
+        $result = $service->resolveTokenContext('customer-id', $this->anonymousContext);
+
+        $this->assertSame($customerContext, $result);
+    }
+
     private function createService(bool $featureAllowed): QuoteBuyerService
     {
         $featureService = new class($featureAllowed) {

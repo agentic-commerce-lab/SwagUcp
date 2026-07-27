@@ -54,9 +54,24 @@ class QuoteOpenApiSchemaTest extends TestCase
     {
         $codes = $this->schema['components']['schemas']['Error']['properties']['messages']['items']['properties']['code']['examples'];
 
-        foreach (['unauthorized', 'buyer_not_found', 'agent_not_authorized', 'quote_not_enabled_for_buyer', 'CHECKOUT__QUOTE_CANNOT_PLACE_ORDER'] as $code) {
+        foreach (['unauthorized', 'buyer_not_found', 'agent_not_authorized', 'quote_not_enabled_for_buyer', 'CHECKOUT__QUOTE_CANNOT_PLACE_ORDER', 'invalid_token', 'insufficient_scope'] as $code) {
             $this->assertContains($code, $codes);
         }
+    }
+
+    public function testOAuthSecuritySchemeIsDocumented(): void
+    {
+        $scheme = $this->schema['components']['securitySchemes']['oauth2IdentityLinking'];
+
+        $this->assertSame('oauth2', $scheme['type']);
+        $this->assertArrayHasKey('quote', $scheme['flows']['authorizationCode']['scopes']);
+
+        $securityOptions = array_merge(...array_map('array_keys', $this->schema['security']));
+        $this->assertContains('oauth2IdentityLinking', $securityOptions);
+        $this->assertContains('ucpAgentSignature', $securityOptions);
+
+        // With a Bearer token there is no buyer claim - buyer must not be required
+        $this->assertNotContains('buyer', $this->schema['components']['schemas']['QuoteRequest']['required']);
     }
 
     public function testBehavioralContractsAreDocumented(): void

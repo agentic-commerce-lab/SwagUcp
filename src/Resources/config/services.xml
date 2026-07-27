@@ -28,6 +28,7 @@
             <argument type="service" id="SwagUcp\Service\QuoteBuyerService"/>
             <argument type="service" id="SwagUcp\Service\QuoteService"/>
             <argument type="service" id="SwagUcp\Mapper\QuoteMapper"/>
+            <argument type="service" id="SwagUcp\Service\QuoteTokenAuthenticator"/>
             <tag name="controller.service_arguments"/>
         </service>
 
@@ -71,6 +72,11 @@
             <argument type="service" id="Shopware\Core\Checkout\Cart\SalesChannel\CartService"/>
             <argument type="service" id="Shopware\Core\Checkout\Cart\LineItemFactoryRegistry"/>
             <argument type="service" id="product.repository"/>
+        </service>
+
+        <service id="SwagUcp\Service\QuoteTokenAuthenticator">
+            <argument type="service" id="Shopware\Core\System\SystemConfig\SystemConfigService"/>
+            <argument type="service" id="Doctrine\DBAL\Connection"/>
         </service>
 
         <service id="SwagUcp\Service\QuoteBuyerService">

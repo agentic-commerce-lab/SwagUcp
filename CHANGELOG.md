@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - `dev.ucp.common.identity_linking` capability advertised in `/.well-known/ucp` when the separate SwagUcpIdentityLinking plugin (customer-facing OAuth 2.0 authorization server) is installed; `config.metadata` points to its RFC 8414 document at `/.well-known/oauth-authorization-server`
+- Quote routes accept OAuth 2.0 Bearer access tokens (scope `quote`) as the preferred authorization mechanism when SwagUcpIdentityLinking is installed: the token replaces request signature, buyer claim, and per-request agent authorization record (`401 invalid_token` / `403 insufficient_scope` on failure); validated with zero class dependencies via the published public key and token table
 - `com.shopware.quote` vendor capability: buyer-facing B2B Request-for-Quote flow for any UCP agent
   - Advertised in `/.well-known/ucp` only when SwagCommercial is active and Quote Management is licensed (soft runtime dependency, no composer requirement)
   - Endpoints: `POST /ucp/quotes`, `GET /ucp/quotes/{id}`, `POST /ucp/quotes/{id}/counter`, `POST /ucp/quotes/{id}/accept`, `POST /ucp/quotes/{id}/decline`

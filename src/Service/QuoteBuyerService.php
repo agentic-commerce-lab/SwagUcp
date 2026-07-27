@@ -62,6 +62,45 @@ class QuoteBuyerService
             throw QuoteAccessException::quoteNotEnabledForBuyer();
         }
 
+        return $this->createCustomerContext($customerId, $anonymousContext);
+    }
+
+    /**
+     * OAuth path (dev.ucp.common.identity_linking): the validated access token
+     * already proves agent identity AND the customer's consent - the grant is
+     * the authorization. No buyer claim and no per-request
+     * swag_ucp_agent_authorization record are needed; only commercial
+     * eligibility (QUOTE_MANAGEMENT) still applies.
+     *
+     * @throws QuoteAccessException
+     */
+    public function resolveTokenContext(string $customerId, SalesChannelContext $anonymousContext): SalesChannelContext
+    {
+        if (!$this->isActiveCustomer($customerId, $anonymousContext)) {
+            throw QuoteAccessException::buyerNotFound();
+        }
+
+        if (!$this->hasQuoteFeature($customerId)) {
+            throw QuoteAccessException::quoteNotEnabledForBuyer();
+        }
+
+        return $this->createCustomerContext($customerId, $anonymousContext);
+    }
+
+    private function isActiveCustomer(string $customerId, SalesChannelContext $context): bool
+    {
+        try {
+            $criteria = new Criteria([$customerId]);
+            $criteria->addFilter(new EqualsFilter('active', true));
+
+            return $this->customerRepository->searchIds($criteria, $context->getContext())->firstId() !== null;
+        } catch (\Exception) {
+            return false; // malformed customer id in the token: treat as unknown buyer
+        }
+    }
+
+    private function createCustomerContext(string $customerId, SalesChannelContext $anonymousContext): SalesChannelContext
+    {
         return $this->contextFactory->create(
             Uuid::randomHex(),
             $anonymousContext->getSalesChannelId(),

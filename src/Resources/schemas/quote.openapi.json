@@ -3,7 +3,7 @@
   "info": {
     "title": "com.shopware.quote",
     "version": "2026-07-27",
-    "description": "Buyer-facing B2B Request-for-Quote capability for Shopware shops. Protocol-neutral: any buyer agent that can sign UCP requests can use it.\n\n## Authentication and authorization\n\nEvery request must satisfy two requirements that cannot be expressed in the anonymous discovery document:\n\n1. **Agent authentication** - send a `UCP-Agent` header (`profile=\"https://<agent-platform>/.well-known/ucp\"`) and a `Request-Signature` header signed with a key published in the agent platform's profile. The shop verifies the signature and may enforce a domain whitelist. Failure: HTTP 403, code `unauthorized`.\n2. **Acting on behalf of a customer** - the request carries a buyer claim (`buyer.email` and/or `buyer.customer_number` in POST bodies; `buyer_email` / `buyer_customer_number` query parameters on GET). The shop resolves the customer server-side; agents never hold customer credentials. The verified agent platform domain must have an unrevoked authorization record for that customer (managed by the merchant), and the customer must have the Quote Management feature enabled.\n\nEnforcement order and machine-readable error codes:\n\n| Check | HTTP | code |\n|---|---|---|\n| Capability not installed/licensed on this shop | 404 | `quote_unavailable` (capability is also absent from /.well-known/ucp) |\n| Agent signature/whitelist fails | 403 | `unauthorized` |\n| Buyer claim resolves to no customer | 404 | `buyer_not_found` |\n| Agent not authorized for this customer | 403 | `agent_not_authorized` |\n| Customer lacks Quote Management flag | 403 | `quote_not_enabled_for_buyer` |\n| Quote id unknown or owned by another customer | 404 | `B2B__QUOTE_NOT_FOUND` (existence is never confirmed) |\n| Accepting an expired or non-actionable quote | 400 | `CHECKOUT__QUOTE_CANNOT_PLACE_ORDER` |\n\n## State machine\n\nBuyer-visible states and who acts (full transition table in `x-state-machine`):\n\n- `open` - request submitted, merchant's turn. Poll.\n- `in_review` - merchant is processing. Poll.\n- `replied` - merchant made an offer, **buyer's turn**: accept, counter, or decline.\n- `change_requested` - buyer countered, merchant's turn. Poll.\n- `accepted`, `declined`, `expired`, `withdrawn`, `cancelled` - terminal for the buyer.\n\n## Expiration\n\nOffers carry `expiration_date` (ISO 8601, always present in responses, may be null before the merchant replies). A quote can be auto-flagged `expired` by a background job; accepting an expired quote fails with HTTP 400 `CHECKOUT__QUOTE_CANNOT_PLACE_ORDER`. Agents must read `expiration_date` from the offer and act before it.\n\n## Price semantics\n\nAll amounts are in the quote's `currency`. `totals.tax_status` states whether `totals.gross` (tax included) or `totals.net` is authoritative. Line item `unit_price`, `requested_unit_price` and counter-offer `requested_unit_price` are **per unit**. Requested prices are the buyer's ask; the merchant's offer is reflected in `unit_price`/`totals` after the quote reaches `replied`.\n\n## Async negotiation\n\nThe merchant side (possibly automated) responds out-of-band. Agents poll `GET /ucp/quotes/{id}` for state changes; recommended polling interval: 300 seconds (see `x-polling-interval-seconds`). Webhooks are not part of this capability version.",
+    "description": "Buyer-facing B2B Request-for-Quote capability for Shopware shops. Protocol-neutral: any buyer agent can use it.\n\n## Authentication and authorization\n\nTwo mechanisms are supported; the OAuth mechanism is **preferred** whenever the shop advertises it.\n\n### OAuth 2.0 Bearer token (preferred, standardized)\n\nWhen the shop's discovery profile lists the `dev.ucp.common.identity_linking` capability, agents SHOULD obtain an OAuth 2.0 access token with scope `quote` and send it as `Authorization: Bearer <token>`. Endpoints (authorization, token, and dynamic client registration per RFC 7591 - agents can self-register a client) are discovered via the RFC 8414 metadata document referenced in that capability's `config.metadata`. The customer grants consent once in the shop's own UI; the token then proves both the agent's identity and the customer's authorization in one credential. Requests carry **no buyer claim** - the token names the customer. Failures: HTTP 401 `invalid_token` (invalid, expired, or revoked), HTTP 403 `insufficient_scope` (token lacks the `quote` scope).\n\n### Signed request + buyer claim (fallback)\n\n1. **Agent authentication** - send a `UCP-Agent` header (`profile=\"https://<agent-platform>/.well-known/ucp\"`) and a `Request-Signature` header signed with a key published in the agent platform's profile. The shop verifies the signature and may enforce a domain whitelist. Failure: HTTP 403, code `unauthorized`.\n2. **Acting on behalf of a customer** - the request carries a buyer claim (`buyer.email` and/or `buyer.customer_number` in POST bodies; `buyer_email` / `buyer_customer_number` query parameters on GET). The shop resolves the customer server-side; agents never hold customer credentials. The verified agent platform domain must have an unrevoked authorization record for that customer (managed by the merchant), and the customer must have the Quote Management feature enabled.\n\nEnforcement order and machine-readable error codes:\n\n| Check | HTTP | code |\n|---|---|---|\n| Capability not installed/licensed on this shop | 404 | `quote_unavailable` (capability is also absent from /.well-known/ucp) |\n| Bearer token invalid, expired, or revoked | 401 | `invalid_token` |\n| Bearer token lacks `quote` scope | 403 | `insufficient_scope` |\n| Agent signature/whitelist fails (fallback mechanism) | 403 | `unauthorized` |\n| Buyer claim resolves to no customer (or token subject unknown) | 404 | `buyer_not_found` |\n| Agent not authorized for this customer (fallback mechanism) | 403 | `agent_not_authorized` |\n| Customer lacks Quote Management flag | 403 | `quote_not_enabled_for_buyer` |\n| Quote id unknown or owned by another customer | 404 | `B2B__QUOTE_NOT_FOUND` (existence is never confirmed) |\n| Accepting an expired or non-actionable quote | 400 | `CHECKOUT__QUOTE_CANNOT_PLACE_ORDER` |\n\n## State machine\n\nBuyer-visible states and who acts (full transition table in `x-state-machine`):\n\n- `open` - request submitted, merchant's turn. Poll.\n- `in_review` - merchant is processing. Poll.\n- `replied` - merchant made an offer, **buyer's turn**: accept, counter, or decline.\n- `change_requested` - buyer countered, merchant's turn. Poll.\n- `accepted`, `declined`, `expired`, `withdrawn`, `cancelled` - terminal for the buyer.\n\n## Expiration\n\nOffers carry `expiration_date` (ISO 8601, always present in responses, may be null before the merchant replies). A quote can be auto-flagged `expired` by a background job; accepting an expired quote fails with HTTP 400 `CHECKOUT__QUOTE_CANNOT_PLACE_ORDER`. Agents must read `expiration_date` from the offer and act before it.\n\n## Price semantics\n\nAll amounts are in the quote's `currency`. `totals.tax_status` states whether `totals.gross` (tax included) or `totals.net` is authoritative. Line item `unit_price`, `requested_unit_price` and counter-offer `requested_unit_price` are **per unit**. Requested prices are the buyer's ask; the merchant's offer is reflected in `unit_price`/`totals` after the quote reaches `replied`.\n\n## Async negotiation\n\nThe merchant side (possibly automated) responds out-of-band. Agents poll `GET /ucp/quotes/{id}` for state changes; recommended polling interval: 300 seconds (see `x-polling-interval-seconds`). Webhooks are not part of this capability version.",
     "x-capability": "com.shopware.quote"
   },
   "x-polling-interval-seconds": 300,
@@ -33,7 +33,7 @@
       { "from": "declined", "action": "reopen", "to": "reopen", "actor": "merchant" }
     ]
   },
-  "security": [{ "ucpAgentSignature": [] }],
+  "security": [{ "oauth2IdentityLinking": ["quote"] }, { "ucpAgentSignature": [] }],
   "paths": {
     "/ucp/quotes": {
       "post": {
@@ -125,6 +125,19 @@
   },
   "components": {
     "securitySchemes": {
+      "oauth2IdentityLinking": {
+        "type": "oauth2",
+        "description": "Preferred when the shop advertises dev.ucp.common.identity_linking. Discover the concrete authorization, token, and RFC 7591 dynamic client registration endpoints via the RFC 8414 metadata document referenced in that capability's config.metadata (served at /.well-known/oauth-authorization-server). The token replaces the buyer claim: its subject is the customer the agent acts for.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "/oauth/authorize",
+            "tokenUrl": "/oauth/token",
+            "scopes": {
+              "quote": "Request, read, counter, accept, and decline quotes on the customer's behalf"
+            }
+          }
+        }
+      },
       "ucpAgentSignature": {
         "type": "apiKey",
         "in": "header",
@@ -149,7 +162,7 @@
     "schemas": {
       "Buyer": {
         "type": "object",
-        "description": "Buyer claim; at least one identifier is required. The shop resolves the customer server-side.",
+        "description": "Buyer claim for the signature fallback mechanism; at least one identifier is required there. Omit entirely when authenticating with an OAuth Bearer token - the token names the customer.",
         "properties": {
           "email": { "type": "string", "format": "email" },
           "customer_number": { "type": "string" }
@@ -157,12 +170,12 @@
       },
       "BuyerOnlyRequest": {
         "type": "object",
-        "required": ["buyer"],
+        "description": "buyer is required only with the signature fallback mechanism",
         "properties": { "buyer": { "$ref": "#/components/schemas/Buyer" } }
       },
       "QuoteRequest": {
         "type": "object",
-        "required": ["buyer", "line_items"],
+        "required": ["line_items"],
         "properties": {
           "buyer": { "$ref": "#/components/schemas/Buyer" },
           "line_items": {
@@ -185,7 +198,6 @@
       },
       "CounterRequest": {
         "type": "object",
-        "required": ["buyer"],
         "properties": {
           "buyer": { "$ref": "#/components/schemas/Buyer" },
           "line_items": {
@@ -206,7 +218,6 @@
       },
       "DeclineRequest": {
         "type": "object",
-        "required": ["buyer"],
         "properties": {
           "buyer": { "$ref": "#/components/schemas/Buyer" },
           "comment": { "type": "string" }
@@ -289,7 +300,7 @@
                 "code": {
                   "type": "string",
                   "description": "Machine-readable error code",
-                  "examples": ["quote_unavailable", "unauthorized", "buyer_not_found", "agent_not_authorized", "quote_not_enabled_for_buyer", "invalid_request", "invalid_json", "B2B__QUOTE_NOT_FOUND", "CHECKOUT__QUOTE_CANNOT_PLACE_ORDER"]
+                  "examples": ["quote_unavailable", "invalid_token", "insufficient_scope", "unauthorized", "buyer_not_found", "agent_not_authorized", "quote_not_enabled_for_buyer", "invalid_request", "invalid_json", "B2B__QUOTE_NOT_FOUND", "CHECKOUT__QUOTE_CANNOT_PLACE_ORDER"]
                 },
                 "content": { "type": "string" },
                 "severity": { "type": "string" }

@@ -232,7 +232,9 @@ Vendor capability `com.shopware.quote`: a buyer-facing Request-for-Quote flow fo
 - `POST /ucp/quotes/{id}/accept` - Accept the offer; accepting **is** ordering and returns the order reference
 - `POST /ucp/quotes/{id}/decline` - Decline the offer
 
-On top of agent authentication, every quote request must satisfy (in this order):
+**Preferred authorization — OAuth 2.0 (identity linking):** when the separate SwagUcpIdentityLinking plugin is installed, the discovery profile advertises `dev.ucp.common.identity_linking` and quote routes accept `Authorization: Bearer <access token>` with scope `quote`. The token — obtained through a standard OAuth consent flow (endpoints and RFC 7591 dynamic client registration discovered via the RFC 8414 metadata document) — proves both the agent's identity and the customer's consent in one standardized credential: no request signature, no buyer claim, and no per-request authorization record needed. Failures are `401 invalid_token` / `403 insufficient_scope`. The customer's `QUOTE_MANAGEMENT` feature flag still applies.
+
+**Fallback authorization — signed request + buyer claim.** On top of agent authentication, every quote request must satisfy (in this order):
 
 1. A buyer claim (`buyer.email` and/or `buyer.customer_number`) resolving to an active customer — else `404 buyer_not_found`.
 2. An unrevoked `swag_ucp_agent_authorization` record linking that customer to the verified agent platform domain — else `403 agent_not_authorized`. Records are managed via the Admin API (`/api/swag-ucp-agent-authorization`); setting `revokedAt` blocks the very next request. The separate **SwagUcpIdentityLinking** plugin creates these records through a standard OAuth 2.0 consent flow (`dev.ucp.common.identity_linking`).

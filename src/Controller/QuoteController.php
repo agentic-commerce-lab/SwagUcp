@@ -14,6 +14,7 @@ use SwagUcp\Service\QuoteAccessException;
 use SwagUcp\Service\QuoteBuyerService;
 use SwagUcp\Service\QuoteFeatureService;
 use SwagUcp\Service\QuoteService;
+use SwagUcp\Service\QuoteTokenAuthenticator;
 use SwagUcp\Ucp;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -37,6 +38,7 @@ class QuoteController
         private readonly QuoteBuyerService $quoteBuyerService,
         private readonly QuoteService $quoteService,
         private readonly QuoteMapper $quoteMapper,
+        private readonly QuoteTokenAuthenticator $tokenAuthenticator,
     ) {
     }
 
@@ -115,11 +117,19 @@ class QuoteController
     }
 
     /**
-     * Shared request pipeline. Enforcement order is part of the capability
-     * contract: capability available (404) -> agent authenticated (403
-     * unauthorized) -> buyer resolved (404 buyer_not_found) -> agent
-     * authorized for buyer (403 agent_not_authorized) -> customer flagged
-     * (403 quote_not_enabled_for_buyer).
+     * Shared request pipeline with two authorization mechanisms:
+     *
+     * OAuth (preferred, when SwagUcpIdentityLinking is installed): a Bearer
+     * access token obtained via dev.ucp.common.identity_linking proves both
+     * the agent and the customer's consent in one standardized credential -
+     * capability available (404) -> token valid (401 invalid_token) -> `quote`
+     * scope (403 insufficient_scope) -> customer flagged (403
+     * quote_not_enabled_for_buyer).
+     *
+     * Legacy (signature + buyer claim): capability available (404) -> agent
+     * authenticated (403 unauthorized) -> buyer resolved (404 buyer_not_found)
+     * -> agent authorized for buyer (403 agent_not_authorized) -> customer
+     * flagged (403 quote_not_enabled_for_buyer).
      *
      * @param callable(array<string, mixed>, SalesChannelContext): JsonResponse $operation
      */
@@ -127,18 +137,6 @@ class QuoteController
     {
         if (!$this->quoteFeatureService->isAvailable()) {
             return $this->errorResponse('quote_unavailable', 'Quote capability is not available on this shop', Response::HTTP_NOT_FOUND);
-        }
-
-        $ucpAgentHeader = $request->headers->get('UCP-Agent');
-        $authResult = $this->agentAuthorizationService->authorizeRequest(
-            $ucpAgentHeader,
-            $request->headers->get('Request-Signature'),
-            $request->getContent(),
-            $context->getSalesChannelId()
-        );
-
-        if (!$authResult->isAllowed()) {
-            return $this->errorResponse('unauthorized', $authResult->getReason(), Response::HTTP_FORBIDDEN);
         }
 
         $body = [];
@@ -151,14 +149,7 @@ class QuoteController
         }
 
         try {
-            $customerContext = $this->quoteBuyerService->resolveContext(
-                $this->agentAuthorizationService->extractAgentDomain($ucpAgentHeader),
-                $body['buyer']['email'] ?? $request->query->get('buyer_email'),
-                $body['buyer']['customer_number'] ?? $request->query->get('buyer_customer_number'),
-                $context
-            );
-
-            return $operation($body, $customerContext);
+            return $operation($body, $this->resolveCustomerContext($request, $body, $context));
         } catch (QuoteAccessException $e) {
             return $this->errorResponse($e->getErrorCode(), $e->getMessage(), $e->getStatusCode());
         } catch (\InvalidArgumentException $e) {
@@ -172,6 +163,41 @@ class QuoteController
         } catch (\Exception $e) {
             return $this->errorResponse('internal_error', 'An error occurred: ' . $e->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     *
+     * @throws QuoteAccessException
+     */
+    private function resolveCustomerContext(Request $request, array $body, SalesChannelContext $context): SalesChannelContext
+    {
+        $authorizationHeader = (string) $request->headers->get('Authorization', '');
+
+        if (str_starts_with($authorizationHeader, 'Bearer ')) {
+            $customerId = $this->tokenAuthenticator->authenticate(substr($authorizationHeader, 7));
+
+            return $this->quoteBuyerService->resolveTokenContext($customerId, $context);
+        }
+
+        $ucpAgentHeader = $request->headers->get('UCP-Agent');
+        $authResult = $this->agentAuthorizationService->authorizeRequest(
+            $ucpAgentHeader,
+            $request->headers->get('Request-Signature'),
+            $request->getContent(),
+            $context->getSalesChannelId()
+        );
+
+        if (!$authResult->isAllowed()) {
+            throw new QuoteAccessException('unauthorized', Response::HTTP_FORBIDDEN, $authResult->getReason());
+        }
+
+        return $this->quoteBuyerService->resolveContext(
+            $this->agentAuthorizationService->extractAgentDomain($ucpAgentHeader),
+            $body['buyer']['email'] ?? $request->query->get('buyer_email'),
+            $body['buyer']['customer_number'] ?? $request->query->get('buyer_customer_number'),
+            $context
+        );
     }
 
     private function quoteResponse(object $quote, int $status = Response::HTTP_OK): JsonResponse

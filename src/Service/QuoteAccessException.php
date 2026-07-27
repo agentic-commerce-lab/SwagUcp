@@ -35,6 +35,16 @@ class QuoteAccessException extends \RuntimeException
         return new self('quote_not_enabled_for_buyer', Response::HTTP_FORBIDDEN, 'Quote Management is not enabled for this customer');
     }
 
+    public static function invalidToken(string $message): self
+    {
+        return new self('invalid_token', Response::HTTP_UNAUTHORIZED, $message);
+    }
+
+    public static function insufficientScope(): self
+    {
+        return new self('insufficient_scope', Response::HTTP_FORBIDDEN, 'Access token lacks the required "quote" scope');
+    }
+
     public function getErrorCode(): string
     {
         return $this->errorCode;
