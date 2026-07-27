@@ -1,5 +1,14 @@
 # Shopware UCP Integration
 
+> ## ⚠️ Moved — this repository is no longer maintained
+>
+> UCP functionality for Shopware now lives in the official plugin:
+> **[shopware/agentic-commerce](https://github.com/shopware/agentic-commerce)**.
+>
+> Use that plugin for new installations and open issues and pull requests there.
+> This repository stays available for reference only; everything below describes
+> the original prototype and no longer receives fixes or new capabilities.
+
 Universal Commerce Protocol (UCP) integration for Shopware 6.
 
 ## Reference implementation
