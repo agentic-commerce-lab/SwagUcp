@@ -1,0 +1,303 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "com.shopware.quote",
+    "version": "2026-07-27",
+    "description": "Buyer-facing B2B Request-for-Quote capability for Shopware shops. Protocol-neutral: any buyer agent that can sign UCP requests can use it.\n\n## Authentication and authorization\n\nEvery request must satisfy two requirements that cannot be expressed in the anonymous discovery document:\n\n1. **Agent authentication** - send a `UCP-Agent` header (`profile=\"https://<agent-platform>/.well-known/ucp\"`) and a `Request-Signature` header signed with a key published in the agent platform's profile. The shop verifies the signature and may enforce a domain whitelist. Failure: HTTP 403, code `unauthorized`.\n2. **Acting on behalf of a customer** - the request carries a buyer claim (`buyer.email` and/or `buyer.customer_number` in POST bodies; `buyer_email` / `buyer_customer_number` query parameters on GET). The shop resolves the customer server-side; agents never hold customer credentials. The verified agent platform domain must have an unrevoked authorization record for that customer (managed by the merchant), and the customer must have the Quote Management feature enabled.\n\nEnforcement order and machine-readable error codes:\n\n| Check | HTTP | code |\n|---|---|---|\n| Capability not installed/licensed on this shop | 404 | `quote_unavailable` (capability is also absent from /.well-known/ucp) |\n| Agent signature/whitelist fails | 403 | `unauthorized` |\n| Buyer claim resolves to no customer | 404 | `buyer_not_found` |\n| Agent not authorized for this customer | 403 | `agent_not_authorized` |\n| Customer lacks Quote Management flag | 403 | `quote_not_enabled_for_buyer` |\n| Quote id unknown or owned by another customer | 404 | `B2B__QUOTE_NOT_FOUND` (existence is never confirmed) |\n| Accepting an expired or non-actionable quote | 400 | `CHECKOUT__QUOTE_CANNOT_PLACE_ORDER` |\n\n## State machine\n\nBuyer-visible states and who acts (full transition table in `x-state-machine`):\n\n- `open` - request submitted, merchant's turn. Poll.\n- `in_review` - merchant is processing. Poll.\n- `replied` - merchant made an offer, **buyer's turn**: accept, counter, or decline.\n- `change_requested` - buyer countered, merchant's turn. Poll.\n- `accepted`, `declined`, `expired`, `withdrawn`, `cancelled` - terminal for the buyer.\n\n## Expiration\n\nOffers carry `expiration_date` (ISO 8601, always present in responses, may be null before the merchant replies). A quote can be auto-flagged `expired` by a background job; accepting an expired quote fails with HTTP 400 `CHECKOUT__QUOTE_CANNOT_PLACE_ORDER`. Agents must read `expiration_date` from the offer and act before it.\n\n## Price semantics\n\nAll amounts are in the quote's `currency`. `totals.tax_status` states whether `totals.gross` (tax included) or `totals.net` is authoritative. Line item `unit_price`, `requested_unit_price` and counter-offer `requested_unit_price` are **per unit**. Requested prices are the buyer's ask; the merchant's offer is reflected in `unit_price`/`totals` after the quote reaches `replied`.\n\n## Async negotiation\n\nThe merchant side (possibly automated) responds out-of-band. Agents poll `GET /ucp/quotes/{id}` for state changes; recommended polling interval: 300 seconds (see `x-polling-interval-seconds`). Webhooks are not part of this capability version.",
+    "x-capability": "com.shopware.quote"
+  },
+  "x-polling-interval-seconds": 300,
+  "x-state-machine": {
+    "states": {
+      "open": { "actor": "merchant", "buyer_actions": [] },
+      "in_review": { "actor": "merchant", "buyer_actions": [] },
+      "replied": { "actor": "buyer", "buyer_actions": ["accept", "counter", "decline"] },
+      "change_requested": { "actor": "merchant", "buyer_actions": [] },
+      "accepted": { "actor": "none", "terminal": true, "buyer_actions": [] },
+      "declined": { "actor": "none", "terminal": true, "buyer_actions": [] },
+      "expired": { "actor": "merchant", "terminal": true, "buyer_actions": [], "note": "merchant may extend expiration back to replied" },
+      "withdrawn": { "actor": "none", "terminal": true, "buyer_actions": [] },
+      "cancelled": { "actor": "none", "terminal": true, "buyer_actions": [] }
+    },
+    "transitions": [
+      { "from": "draft", "action": "customer_send", "to": "open", "actor": "buyer", "note": "performed automatically inside POST /ucp/quotes; draft is never exposed" },
+      { "from": "open", "action": "process", "to": "in_review", "actor": "merchant" },
+      { "from": "open", "action": "sent", "to": "replied", "actor": "merchant" },
+      { "from": "in_review", "action": "sent", "to": "replied", "actor": "merchant" },
+      { "from": "replied", "action": "accept", "to": "accepted", "actor": "buyer", "endpoint": "POST /ucp/quotes/{id}/accept" },
+      { "from": "replied", "action": "decline", "to": "declined", "actor": "buyer", "endpoint": "POST /ucp/quotes/{id}/decline" },
+      { "from": "replied", "action": "request_change", "to": "change_requested", "actor": "buyer", "endpoint": "POST /ucp/quotes/{id}/counter" },
+      { "from": "replied", "action": "expire", "to": "expired", "actor": "system" },
+      { "from": "change_requested", "action": "admin_resend", "to": "replied", "actor": "merchant" },
+      { "from": "expired", "action": "admin_extend_expiration", "to": "replied", "actor": "merchant" },
+      { "from": "declined", "action": "reopen", "to": "reopen", "actor": "merchant" }
+    ]
+  },
+  "security": [{ "ucpAgentSignature": [] }],
+  "paths": {
+    "/ucp/quotes": {
+      "post": {
+        "operationId": "requestQuote",
+        "summary": "Request a quote (RFQ). Creates and submits the request in one call; the returned quote is in state `open`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/QuoteRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Quote created and submitted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Quote" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/ucp/quotes/{id}": {
+      "get": {
+        "operationId": "getQuote",
+        "summary": "Read a quote snapshot (state, line items with offered prices, totals, expiration_date, comments). Only quotes owned by the resolved customer are visible; anything else is 404.",
+        "parameters": [
+          { "$ref": "#/components/parameters/quoteId" },
+          { "name": "buyer_email", "in": "query", "required": false, "schema": { "type": "string", "format": "email" }, "description": "Buyer claim for GET requests" },
+          { "name": "buyer_customer_number", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Quote snapshot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Quote" } } } },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/ucp/quotes/{id}/counter": {
+      "post": {
+        "operationId": "counterQuote",
+        "summary": "Counter-offer: new per-line requested unit prices and/or a comment. Valid only in state `replied`; transitions to `change_requested`.",
+        "parameters": [{ "$ref": "#/components/parameters/quoteId" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CounterRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Updated quote (state change_requested)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Quote" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/ucp/quotes/{id}/accept": {
+      "post": {
+        "operationId": "acceptQuote",
+        "summary": "Accept the offer. Accepting IS ordering: executes the quote-to-order flow and returns the order reference. Valid only in state `replied` and before expiration_date.",
+        "parameters": [{ "$ref": "#/components/parameters/quoteId" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BuyerOnlyRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Order placed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AcceptResponse" } } } },
+          "400": { "description": "Not acceptable in current state or expired (code CHECKOUT__QUOTE_CANNOT_PLACE_ORDER)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/ucp/quotes/{id}/decline": {
+      "post": {
+        "operationId": "declineQuote",
+        "summary": "Decline the offer with an optional comment. Valid only in state `replied`.",
+        "parameters": [{ "$ref": "#/components/parameters/quoteId" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeclineRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Declined quote", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Quote" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ucpAgentSignature": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Request-Signature",
+        "description": "Detached signature over the raw request body, verifiable against the signing keys published in the agent platform's /.well-known/ucp profile referenced by the UCP-Agent header."
+      }
+    },
+    "parameters": {
+      "quoteId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+        "description": "Quote id (UUID hex). Ids are unguessable but treated as secrets of the owning customer: foreign ids return 404."
+      }
+    },
+    "responses": {
+      "BadRequest": { "description": "Invalid payload or state", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Forbidden": { "description": "unauthorized | agent_not_authorized | quote_not_enabled_for_buyer", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "NotFound": { "description": "quote_unavailable | buyer_not_found | B2B__QUOTE_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    },
+    "schemas": {
+      "Buyer": {
+        "type": "object",
+        "description": "Buyer claim; at least one identifier is required. The shop resolves the customer server-side.",
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "customer_number": { "type": "string" }
+        }
+      },
+      "BuyerOnlyRequest": {
+        "type": "object",
+        "required": ["buyer"],
+        "properties": { "buyer": { "$ref": "#/components/schemas/Buyer" } }
+      },
+      "QuoteRequest": {
+        "type": "object",
+        "required": ["buyer", "line_items"],
+        "properties": {
+          "buyer": { "$ref": "#/components/schemas/Buyer" },
+          "line_items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "description": "product_id or product_number is required",
+              "properties": {
+                "product_id": { "type": "string" },
+                "product_number": { "type": "string" },
+                "quantity": { "type": "integer", "minimum": 1 },
+                "requested_unit_price": { "type": "number", "description": "Buyer's asking price per unit, in the shop's customer-facing currency" }
+              },
+              "required": ["quantity"]
+            }
+          },
+          "comment": { "type": "string" }
+        }
+      },
+      "CounterRequest": {
+        "type": "object",
+        "required": ["buyer"],
+        "properties": {
+          "buyer": { "$ref": "#/components/schemas/Buyer" },
+          "line_items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Reference an existing quote line by id (preferred) or product_id",
+              "properties": {
+                "id": { "type": "string", "description": "Quote line item id from GET /ucp/quotes/{id}" },
+                "product_id": { "type": "string" },
+                "requested_unit_price": { "type": "number", "description": "New asking price per unit" }
+              },
+              "required": ["requested_unit_price"]
+            }
+          },
+          "comment": { "type": "string" }
+        }
+      },
+      "DeclineRequest": {
+        "type": "object",
+        "required": ["buyer"],
+        "properties": {
+          "buyer": { "$ref": "#/components/schemas/Buyer" },
+          "comment": { "type": "string" }
+        }
+      },
+      "Quote": {
+        "type": "object",
+        "required": ["id", "state", "expiration_date", "totals", "line_items"],
+        "properties": {
+          "id": { "type": "string" },
+          "quote_number": { "type": "string" },
+          "state": { "type": "string", "enum": ["open", "in_review", "replied", "change_requested", "accepted", "declined", "expired", "withdrawn", "cancelled", "reopen"] },
+          "expiration_date": { "type": ["string", "null"], "format": "date-time", "description": "Always present. Accept before this instant; null means the merchant has not set one yet (the quote may still be expired by a background job)." },
+          "currency": { "type": ["string", "null"], "description": "ISO 4217 code; all amounts in this document are in this currency" },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "gross": { "type": ["number", "null"], "description": "Total including tax" },
+              "net": { "type": ["number", "null"], "description": "Total excluding tax" },
+              "tax_status": { "type": "string", "enum": ["gross", "net", "tax-free"], "description": "Which total is the customer-facing authoritative amount" }
+            }
+          },
+          "line_items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "product_id": { "type": ["string", "null"] },
+                "label": { "type": "string" },
+                "quantity": { "type": "integer" },
+                "unit_price": { "type": "number", "description": "Current (offered) price per unit" },
+                "total_price": { "type": "number" },
+                "requested_unit_price": { "type": ["number", "null"], "description": "Buyer's last ask per unit, if any" }
+              }
+            }
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "comment": { "type": "string" },
+                "author": { "type": "string", "enum": ["buyer", "merchant"] },
+                "created_at": { "type": ["string", "null"], "format": "date-time" }
+              }
+            }
+          },
+          "order_id": { "type": ["string", "null"], "description": "Set after acceptance" },
+          "ucp": { "type": "object", "properties": { "version": { "type": "string" } } }
+        }
+      },
+      "AcceptResponse": {
+        "type": "object",
+        "required": ["quote_id", "state", "order"],
+        "properties": {
+          "quote_id": { "type": "string" },
+          "state": { "type": "string", "const": "accepted" },
+          "order": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "string" },
+              "order_number": { "type": ["string", "null"] }
+            }
+          },
+          "ucp": { "type": "object", "properties": { "version": { "type": "string" } } }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "const": "error" },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "code": {
+                  "type": "string",
+                  "description": "Machine-readable error code",
+                  "examples": ["quote_unavailable", "unauthorized", "buyer_not_found", "agent_not_authorized", "quote_not_enabled_for_buyer", "invalid_request", "invalid_json", "B2B__QUOTE_NOT_FOUND", "CHECKOUT__QUOTE_CANNOT_PLACE_ORDER"]
+                },
+                "content": { "type": "string" },
+                "severity": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

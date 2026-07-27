@@ -22,6 +22,15 @@
             <tag name="controller.service_arguments"/>
         </service>
 
+        <service id="SwagUcp\Controller\QuoteController">
+            <argument type="service" id="SwagUcp\Service\QuoteFeatureService"/>
+            <argument type="service" id="SwagUcp\Service\AgentAuthorizationService"/>
+            <argument type="service" id="SwagUcp\Service\QuoteBuyerService"/>
+            <argument type="service" id="SwagUcp\Service\QuoteService"/>
+            <argument type="service" id="SwagUcp\Mapper\QuoteMapper"/>
+            <tag name="controller.service_arguments"/>
+        </service>
+
         <!-- Core Services -->
         <service id="SwagUcp\Service\DiscoveryService">
             <argument type="service" id="Shopware\Core\System\SystemConfig\SystemConfigService"/>
