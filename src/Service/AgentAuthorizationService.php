@@ -118,6 +118,24 @@ class AgentAuthorizationService
     }
 
     /**
+     * Extract the agent platform's domain from the UCP-Agent header
+     * (host of the profile URL). Used as the identity key for
+     * per-customer agent authorization records.
+     */
+    public function extractAgentDomain(?string $ucpAgentHeader): ?string
+    {
+        $profileUrl = $this->extractProfileUrl($ucpAgentHeader);
+
+        if ($profileUrl === null) {
+            return null;
+        }
+
+        $host = parse_url($profileUrl, \PHP_URL_HOST);
+
+        return \is_string($host) && $host !== '' ? strtolower($host) : null;
+    }
+
+    /**
      * Get list of known trusted platforms.
      *
      * @return list<string>

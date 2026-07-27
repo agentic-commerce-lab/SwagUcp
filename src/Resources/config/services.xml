@@ -50,6 +50,14 @@
 
         <service id="SwagUcp\Service\QuoteFeatureService"/>
 
+        <service id="SwagUcp\Service\QuoteBuyerService">
+            <argument type="service" id="customer.repository"/>
+            <argument type="service" id="swag_ucp_agent_authorization.repository"/>
+            <!-- Soft dependency: null when SwagCommercial is not installed -->
+            <argument type="service" id="Shopware\Commercial\B2B\CustomerSpecificFeatures\Domain\CustomerSpecificFeature\CustomerSpecificFeatureService" on-invalid="null"/>
+            <argument type="service" id="Shopware\Core\System\SalesChannel\Context\SalesChannelContextFactory"/>
+        </service>
+
         <service id="SwagUcp\Service\PaymentHandlerService">
             <argument type="service" id="SwagUcp\Service\DiscoveryService"/>
         </service>
