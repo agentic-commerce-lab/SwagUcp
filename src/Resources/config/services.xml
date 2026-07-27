@@ -131,5 +131,9 @@
         <service id="SwagUcp\Entity\AgentAuthorization\AgentAuthorizationDefinition">
             <tag name="shopware.entity.definition" entity="swag_ucp_agent_authorization"/>
         </service>
+
+        <service id="SwagUcp\Entity\AgentAuthorization\CustomerExtension">
+            <tag name="shopware.entity.extension"/>
+        </service>
     </services>
 </container>
